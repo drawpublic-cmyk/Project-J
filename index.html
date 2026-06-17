@@ -1,0 +1,1382 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>존급 프로토타입</title>
+  <style>
+    /* =========================================================
+       1. 컬러 토큰 (Design Spec v1 — 절대값. 직접 하드코딩 금지)
+       ========================================================= */
+    :root {
+      --brand-green: #06530B; /* 모든 주요 액션: 전체(활성)·SOS·길안내, 버스 핀, 선택점, 선택 칩 */
+      --lavender:    #BBBFEC; /* 모든 카테고리 핀(화·편·프 동일), 스플래시/버스헤더, 정보 박스 */
+      --cream:       #FDFCF7; /* 카드·검색바·시트 배경 */
+      --map-bg:      #F4F2EA; /* 지도 영역 배경 */
+      --charcoal:    #1A1A1A; /* 본문 텍스트, 로고 글자 */
+      --pink-accent: #E5407A; /* 보조 액센트(전화 아이콘, 검색 결과 핀) ※ 소량만 */
+
+      /* 토큰이 아닌 파생 중립색(선/뮤트/플레이스홀더) — 의미색 6종과 구분 */
+      --line:  rgba(26, 26, 26, .12);
+      --muted: rgba(26, 26, 26, .55);
+      --field: rgba(26, 26, 26, .05);
+      --ph:    #d7d7cf; /* 이미지 placeholder 회색 박스 */
+      --shadow: 0 24px 70px rgba(28, 34, 22, .18);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans KR", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      color: var(--charcoal);
+      background:
+        linear-gradient(90deg, rgba(6,83,11,.05) 1px, transparent 1px),
+        linear-gradient(rgba(6,83,11,.04) 1px, transparent 1px),
+        var(--map-bg);
+      background-size: 32px 32px;
+    }
+
+    button, input { font: inherit; color: inherit; }
+    button { cursor: pointer; }
+
+    .shell {
+      min-height: 100vh;
+      display: grid;
+      grid-template-columns: minmax(360px, 440px) minmax(360px, 1fr);
+      gap: 34px;
+      align-items: center;
+      padding: 36px;
+    }
+
+    .phone {
+      width: min(100%, 390px);
+      height: 812px;
+      margin: 0 auto;
+      border: 12px solid #191b18;
+      border-radius: 44px;
+      background: var(--cream);
+      overflow: hidden;
+      box-shadow: var(--shadow);
+      position: relative;
+    }
+
+    .notch {
+      position: absolute;
+      top: 9px;
+      left: 50%;
+      width: 112px;
+      height: 28px;
+      border-radius: 0 0 18px 18px;
+      background: #191b18;
+      transform: translateX(-50%);
+      z-index: 20;
+    }
+
+    .status {
+      height: 44px;
+      padding: 12px 22px 0;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      font-size: 13px;
+      font-weight: 700;
+      position: relative;
+      z-index: 10;
+    }
+
+    .screen {
+      display: none;
+      height: calc(100% - 44px);
+      position: relative;
+      overflow: hidden;
+      background: var(--cream);
+    }
+    .screen.active { display: block; }
+
+    /* ---------- 스플래시 (배경: lavender) ---------- */
+    .splash {
+      height: 100%;
+      background: var(--lavender);
+      display: grid;
+      place-items: center;
+      text-align: center;
+      padding: 28px;
+    }
+    .logo-pin {
+      width: 92px;
+      height: 92px;
+      border-radius: 48px 48px 48px 10px;
+      background: var(--cream);
+      border: 4px solid var(--brand-green);
+      transform: rotate(-45deg);
+      display: grid;
+      place-items: center;
+      margin: 0 auto 18px;
+    }
+    .logo-pin span {
+      transform: rotate(45deg);
+      font-size: 34px;
+      font-weight: 900;
+      color: var(--brand-green);
+    }
+    .brand { font-size: 30px; font-weight: 900; color: var(--charcoal); }
+    .tagline { margin-top: 8px; color: var(--charcoal); font-weight: 700; }
+    .version { margin-top: 76px; color: rgba(26,26,26,.4); font-size: 12px; }
+
+    /* ---------- 온보딩 ---------- */
+    .onboard {
+      height: 100%;
+      padding: 64px 28px 26px;
+      display: flex;
+      flex-direction: column;
+    }
+    .step { color: var(--brand-green); font-weight: 900; font-size: 12px; }
+    h1 { margin: 14px 0 14px; font-size: 35px; line-height: 1.14; color: var(--charcoal); }
+    .copy { color: var(--muted); line-height: 1.65; font-weight: 650; }
+    .radar {
+      margin: auto;
+      width: 190px;
+      height: 190px;
+      border-radius: 50%;
+      background: radial-gradient(circle, var(--brand-green) 0 10px, var(--cream) 11px 18px, rgba(6,83,11,.18) 19px 48px, rgba(6,83,11,.08) 49px 80px, transparent 81px);
+      position: relative;
+    }
+    .radar:after {
+      content: "";
+      position: absolute;
+      inset: 28px;
+      border: 1px solid rgba(6,83,11,.18);
+      border-radius: 50%;
+    }
+
+    /* ---------- 공용 버튼 (주요 CTA: brand-green) ---------- */
+    .primary {
+      border: 0;
+      background: var(--brand-green);
+      color: #fff;
+      border-radius: 16px;
+      min-height: 54px;
+      padding: 0 18px;
+      font-weight: 900;
+      box-shadow: 0 10px 24px rgba(6,83,11,.2);
+    }
+    .ghost {
+      border: 0;
+      background: transparent;
+      min-height: 48px;
+      color: var(--muted);
+      font-weight: 800;
+    }
+
+    /* ---------- 지도 헤더 / 검색바 / 필터 칩 ---------- */
+    .map-head {
+      padding: 8px 14px 8px;
+      position: relative;
+      z-index: 5;
+      background: rgba(253,252,247,.92);
+      border-bottom: 1px solid var(--line);
+    }
+    .searchbar {
+      width: 100%;
+      height: 44px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--cream);
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      padding: 0 14px;
+      font-weight: 800;
+      color: var(--charcoal);
+      text-align: left;
+    }
+    .chips {
+      margin-top: 9px;
+      display: flex;
+      flex-wrap: nowrap;
+      gap: 7px;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+      cursor: grab;
+    }
+    .chips:active { cursor: grabbing; }
+    .chips::-webkit-scrollbar { display: none; }
+    /* 선택 안 됨: 흰 배경 + charcoal 1px 테두리 + charcoal 글자 */
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      border: 1px solid var(--charcoal);
+      background: var(--cream);
+      border-radius: 999px;
+      padding: 7px 12px;
+      white-space: nowrap;
+      font-size: 13px;
+      font-weight: 850;
+      color: var(--charcoal);
+    }
+    .chip svg { display: block; }
+    /* 선택됨: brand-green 배경 + 흰 글자 (절대 검정 배경 금지) */
+    .chip.active {
+      color: #fff;
+      background: var(--brand-green);
+      border-color: var(--brand-green);
+    }
+
+    /* ---------- 지도 (배경: map-bg) ---------- */
+    .map {
+      position: absolute;
+      inset: 105px 0 76px;
+      background:
+        linear-gradient(90deg, transparent 30px, rgba(26,26,26,.06) 31px, transparent 32px),
+        linear-gradient(transparent 44px, rgba(26,26,26,.05) 45px, transparent 46px),
+        linear-gradient(135deg, transparent 0 42%, rgba(187,191,236,.35) 42% 50%, transparent 50%),
+        var(--map-bg);
+      background-size: 76px 76px, 76px 76px, 100% 100%;
+    }
+    /* 실제 카카오맵 컨테이너 (키 있을 때만 위로 덮음) */
+    #kakaoMap {
+      position: absolute;
+      inset: 105px 0 76px;
+      display: none;
+      z-index: 1;
+    }
+    .park {
+      position: absolute;
+      top: 42px;
+      left: 210px;
+      width: 130px;
+      height: 86px;
+      border-radius: 50%;
+      background: rgba(6,83,11,.1);
+      display: grid;
+      place-items: center;
+      color: var(--brand-green);
+      font-weight: 800;
+    }
+    /* 내 위치 점: brand-green 링 */
+    .me {
+      position: absolute;
+      left: 49%;
+      top: 50%;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: var(--brand-green);
+      border: 4px solid #fff;
+      box-shadow: 0 0 0 9px rgba(6,83,11,.16);
+    }
+
+    /* ---------- 핀 (화·편·프 = lavender / 버스 = brand-green) ---------- */
+    .pin {
+      position: absolute;
+      width: 34px;
+      height: 34px;
+      border: 2px solid #fff;
+      border-radius: 17px 17px 17px 4px;
+      transform: rotate(-45deg);
+      display: grid;
+      place-items: center;
+      box-shadow: 0 7px 18px rgba(0,0,0,.16);
+    }
+    .pin span { transform: rotate(45deg); display: grid; place-items: center; color: #fff; }
+    .pin.toilet,
+    .pin.store,
+    .pin.print { background: var(--lavender); }      /* 카테고리 핀: 단일 라벤더 */
+    .pin.bus,
+    .pin.subway { background: var(--brand-green); }   /* 교통수단(버스·지하철) 핀: 초록 */
+    .pin.search { background: var(--pink-accent); }   /* 검색 결과 핀: 핑크 액센트(소량) */
+    .pin.dim { display: none; }
+    .pin.p1 { left: 66px; top: 86px; }
+    .pin.p2 { left: 246px; top: 144px; }
+    .pin.p3 { left: 80px; top: 306px; }
+    .pin.p4 { left: 270px; top: 292px; }
+    .pin.p5 { left: 180px; top: 230px; }
+    .pin.p6 { left: 42px; top: 224px; }
+    .pin.p7 { left: 150px; top: 120px; }
+
+    /* SOS 버튼: brand-green (빨강 금지) */
+    .sos {
+      position: absolute;
+      right: 17px;
+      bottom: 175px;
+      width: 60px;
+      height: 60px;
+      border-radius: 18px;
+      border: 0;
+      background: var(--brand-green);
+      color: #fff;
+      font-weight: 1000;
+      box-shadow: 0 16px 30px rgba(6,83,11,.28);
+      z-index: 7;
+    }
+    .locate {
+      position: absolute;
+      right: 18px;
+      bottom: 244px;
+      width: 44px;
+      height: 44px;
+      border-radius: 14px;
+      border: 1px solid var(--line);
+      background: var(--cream);
+      z-index: 7;
+      font-weight: 900;
+      color: var(--brand-green);
+    }
+    .place-card {
+      position: absolute;
+      left: 12px;
+      right: 12px;
+      bottom: 88px;
+      background: var(--cream);
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      padding: 14px;
+      z-index: 6;
+      box-shadow: 0 14px 34px rgba(0,0,0,.12);
+    }
+    .place-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      font-weight: 950;
+    }
+    .place-title #cardType { display: inline-grid; place-items: center; vertical-align: middle; }
+    .place-title > span:first-child { display: inline-flex; align-items: center; gap: 6px; }
+    .meta { color: var(--muted); font-size: 13px; margin-top: 6px; font-weight: 700; }
+    /* 거리/상태 강조 숫자: brand-green */
+    .dist { color: var(--brand-green); font-weight: 950; }
+    .row-actions { margin-top: 12px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .mini-btn {
+      border: 1px solid var(--line);
+      background: var(--field);
+      min-height: 38px;
+      border-radius: 12px;
+      font-weight: 900;
+      color: var(--charcoal);
+    }
+    /* 길안내 미니버튼은 주요 액션 → brand-green */
+    .mini-btn.cta { background: var(--brand-green); color: #fff; border-color: var(--brand-green); }
+
+    /* ---------- 하단 탭 ---------- */
+    .tabs {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 76px;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      border-top: 1px solid var(--line);
+      background: rgba(253,252,247,.96);
+      z-index: 12;
+    }
+    .tab {
+      border: 0;
+      background: transparent;
+      display: grid;
+      place-items: center;
+      align-content: center;
+      gap: 3px;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 850;
+    }
+    .tab b { font-size: 19px; line-height: 1; }
+    .tab.active { color: var(--brand-green); }
+
+    /* ---------- 리스트 ---------- */
+    .page {
+      height: 100%;
+      padding: 8px 18px 86px;
+      overflow-y: auto;
+    }
+    .titlebar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      min-height: 54px;
+    }
+    .titlebar h2 { margin: 0; font-size: 25px; }
+    .sub { margin: 0 0 12px; color: var(--muted); font-size: 13px; font-weight: 750; }
+    .list-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin: 14px 0;
+      font-size: 13px;
+      font-weight: 850;
+    }
+    .list-item {
+      display: grid;
+      grid-template-columns: 42px 1fr auto;
+      gap: 12px;
+      align-items: center;
+      padding: 14px 0;
+      border-bottom: 1px solid var(--line);
+    }
+    .badge {
+      width: 38px;
+      height: 38px;
+      border-radius: 14px;
+      display: grid;
+      place-items: center;
+      color: #fff;
+      font-weight: 950;
+      font-size: 13px;
+    }
+    .badge svg { display: block; }
+    .badge.toilet,
+    .badge.store,
+    .badge.print { background: var(--lavender); } /* 카테고리 뱃지: 단일 라벤더 */
+    .badge.bus,
+    .badge.subway { background: var(--brand-green); }
+    .badge.search { background: var(--pink-accent); }
+    .li-main { text-align: left; min-width: 0; }
+    .item-name { font-weight: 950; }
+    .item-tags { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 7px; }
+    /* 즐겨찾기 하트 (pink-accent 보조 액센트) */
+    .heart {
+      border: 0;
+      background: transparent;
+      font-size: 22px;
+      line-height: 1;
+      width: 40px;
+      color: rgba(26,26,26,.3);
+      transition: transform .1s;
+    }
+    .heart:active { transform: scale(1.25); }
+    .heart.on { color: var(--pink-accent); }
+    .fav-empty { text-align: center; color: var(--muted); font-weight: 750; margin-top: 60px; line-height: 1.7; }
+    .fav-empty .big { font-size: 40px; display: block; margin-bottom: 10px; }
+    .pill {
+      padding: 5px 8px;
+      border-radius: 999px;
+      background: var(--field);
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 850;
+    }
+    .crowd { color: var(--brand-green); font-weight: 950; font-size: 12px; }
+
+    /* ---------- 상세 ---------- */
+    .detail-hero {
+      height: 210px;
+      margin: 0 -18px;
+      position: relative;
+      background: var(--ph); /* 이미지 placeholder 회색 박스 */
+      display: grid;
+      place-items: center;
+    }
+    .detail-hero .ph-label { color: rgba(26,26,26,.45); font-weight: 850; }
+    .top-icons {
+      position: absolute;
+      top: 12px;
+      left: 14px;
+      right: 14px;
+      display: flex;
+      justify-content: space-between;
+    }
+    .icon-btn {
+      width: 42px;
+      height: 42px;
+      border-radius: 50%;
+      border: 1px solid rgba(0,0,0,.08);
+      background: rgba(253,252,247,.9);
+      font-weight: 950;
+      color: var(--charcoal);
+    }
+    .detail-card {
+      margin-top: -36px;
+      background: var(--cream);
+      border: 1px solid var(--line);
+      border-radius: 24px 24px 0 0;
+      padding: 18px;
+      position: relative;
+      min-height: 520px;
+    }
+    .metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 16px 0; }
+    .metric {
+      background: var(--field);
+      border-radius: 15px;
+      padding: 12px 8px;
+      text-align: center;
+      font-weight: 950;
+      color: var(--brand-green); /* 강조 숫자 */
+    }
+    .metric span { display: block; color: var(--muted); font-size: 11px; margin-top: 4px; font-weight: 800; }
+    /* 정보 박스: lavender */
+    .info-list {
+      display: grid;
+      gap: 12px;
+      margin: 18px 0 22px;
+      background: var(--lavender);
+      border-radius: 16px;
+      padding: 16px;
+    }
+    .info-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid rgba(26,26,26,.12);
+      color: var(--charcoal);
+      font-weight: 750;
+    }
+    .info-row:last-child { border-bottom: 0; padding-bottom: 0; }
+    .info-row span:first-child { color: rgba(26,26,26,.6); }
+    .phone-icon { color: var(--pink-accent); font-weight: 950; }
+
+    /* ---------- 길찾기 ---------- */
+    .route-map {
+      position: absolute;
+      inset: 44px 0 0;
+      background:
+        linear-gradient(90deg, transparent 34px, rgba(26,26,26,.06) 35px, transparent 36px),
+        linear-gradient(transparent 44px, rgba(26,26,26,.05) 45px, transparent 46px),
+        var(--map-bg);
+      background-size: 80px 80px;
+    }
+    .route-line {
+      position: absolute;
+      left: 112px;
+      top: 190px;
+      width: 3px;
+      height: 330px;
+      background: var(--brand-green);
+      transform: rotate(28deg);
+      transform-origin: top;
+      border-radius: 4px;
+    }
+    .route-banner {
+      position: absolute;
+      top: 70px;
+      left: 20px;
+      right: 20px;
+      background: var(--brand-green);
+      color: #fff;
+      border-radius: 18px;
+      padding: 16px;
+      font-weight: 950;
+      box-shadow: var(--shadow);
+    }
+    .route-bottom {
+      position: absolute;
+      left: 16px;
+      right: 16px;
+      bottom: 22px;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: center;
+      background: var(--cream);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 14px;
+    }
+
+    /* ---------- 검색 ---------- */
+    .search-page { padding-top: 10px; }
+    .search-input {
+      height: 52px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: var(--cream);
+      display: flex;
+      align-items: center;
+      padding: 0 14px;
+      gap: 8px;
+      font-weight: 900;
+    }
+    .recent { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0 22px; }
+    .recent .pill { background: var(--cream); border: 1px solid var(--line); font-size: 12px; color: var(--charcoal); }
+
+    /* ---------- 버스 상세 (헤더: lavender) ---------- */
+    .bus-head {
+      padding: 10px 18px 0;
+      height: 132px;
+      background: var(--lavender);
+      border-bottom: 1px solid var(--line);
+    }
+    .bus-list { padding: 16px 18px 90px; }
+    .bus-row {
+      display: grid;
+      grid-template-columns: 54px 1fr auto;
+      gap: 10px;
+      align-items: center;
+      padding: 12px;
+      background: var(--cream);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      margin-bottom: 10px;
+    }
+    .route-no {
+      height: 34px;
+      border-radius: 9px;
+      display: grid;
+      place-items: center;
+      background: var(--brand-green);
+      color: #fff;
+      font-weight: 950;
+    }
+    .level {
+      min-width: 42px;
+      text-align: center;
+      border-radius: 999px;
+      padding: 6px 8px;
+      font-size: 12px;
+      font-weight: 950;
+      background: var(--field);
+      color: var(--charcoal);
+    }
+    .level.hot { background: rgba(229,64,122,.16); color: var(--pink-accent); }
+    .level.mid { background: rgba(187,191,236,.4); color: var(--charcoal); }
+    .level.low { background: rgba(6,83,11,.12); color: var(--brand-green); }
+
+    /* ---------- SOS 화면 ---------- */
+    .sos-screen { background: var(--cream); }
+    .sos-header {
+      height: 72px;
+      background: var(--brand-green);
+      color: #fff;
+      display: flex;
+      align-items: end;
+      padding: 0 20px 14px;
+      font-weight: 950;
+    }
+    .sos-card {
+      margin: 18px;
+      background: var(--cream);
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      padding: 22px;
+      box-shadow: 0 16px 34px rgba(0,0,0,.1);
+    }
+    .big-pin {
+      width: 64px;
+      height: 64px;
+      border-radius: 34px 34px 34px 8px;
+      background: var(--brand-green);
+      transform: rotate(-45deg);
+      display: grid;
+      place-items: center;
+      margin-bottom: 22px;
+    }
+    .big-pin span { transform: rotate(45deg); color: #fff; font-weight: 950; }
+    .sos-metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 20px 0; }
+
+    /* ---------- 우측 설명 패널 ---------- */
+    .side {
+      max-width: 780px;
+      align-self: stretch;
+      display: grid;
+      align-content: center;
+      gap: 18px;
+    }
+    .panel {
+      background: rgba(253,252,247,.78);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 20px;
+      backdrop-filter: blur(16px);
+    }
+    .panel h2, .panel h3 { margin: 0 0 10px; color: var(--charcoal); }
+    .panel h2 { font-size: 26px; }
+    .panel p { color: var(--muted); line-height: 1.7; margin: 0; font-weight: 650; }
+    .swatches { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+    .sw { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 800; }
+    .sw i { width: 16px; height: 16px; border-radius: 4px; border: 1px solid var(--line); display: inline-block; }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 14px;
+    }
+    .note {
+      border-left: 4px solid var(--brand-green);
+      background: var(--field);
+      border-radius: 6px;
+      padding: 12px;
+      font-size: 13px;
+      line-height: 1.55;
+      color: var(--charcoal);
+      font-weight: 650;
+    }
+    .source-list {
+      display: grid;
+      gap: 8px;
+      margin: 12px 0 0;
+      padding: 0;
+      list-style: none;
+      color: var(--charcoal);
+      font-size: 13px;
+      line-height: 1.55;
+      font-weight: 700;
+    }
+    .source-list a { color: var(--brand-green); }
+    code.k { background: var(--field); padding: 1px 6px; border-radius: 5px; font-size: 12px; }
+    .status-dot { display:inline-block; width:8px; height:8px; border-radius:50%; background: var(--pink-accent); margin-right:6px; }
+    .status-dot.on { background: var(--brand-green); }
+
+    @media (max-width: 900px) {
+      .shell { grid-template-columns: 1fr; padding: 18px; }
+      .phone { height: 780px; }
+      .side { align-content: start; }
+      .grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <section class="phone" aria-label="존급 모바일 프로토타입">
+      <div class="notch"></div>
+      <div class="status"><span>9:41</span><span>▰▰▰ 100%</span></div>
+
+      <!-- 1. 스플래시 -->
+      <section class="screen active" data-screen="splash">
+        <div class="splash">
+          <div>
+            <div class="logo-pin"><span>급</span></div>
+            <div class="brand">존급</div>
+            <div class="tagline">존나 급할 때, 존급</div>
+            <div class="version">v0.1 · 대한민국 전체 지원</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 2. 온보딩 -->
+      <section class="screen" data-screen="onboard">
+        <div class="onboard">
+          <div class="step">STEP 2 / 3</div>
+          <h1>지금 당신이<br>어디 있는지<br>알려줄게요</h1>
+          <p class="copy">위치 권한을 허용하면 반경 500m 내 화장실 · 편의점 · 프린터 · 버스정류장을 전부 핀으로 보여줘요.</p>
+          <div class="radar"></div>
+          <button class="primary" data-goto="map" data-locate="1">위치 허용하고 시작</button>
+          <button class="ghost" data-goto="map">나중에 할게요</button>
+        </div>
+      </section>
+
+      <!-- 3. 메인 지도 -->
+      <section class="screen" data-screen="map">
+        <div class="map-head">
+          <button class="searchbar" data-goto="search">⌕ 어디 근처에서 급해요?</button>
+          <div class="chips" id="filterChips"></div>
+        </div>
+        <div class="map">
+          <div class="park">공원</div>
+          <div class="me"></div>
+          <div class="pin toilet p1" data-kind="toilet"><span></span></div>
+          <div class="pin store p2" data-kind="store"><span></span></div>
+          <div class="pin print p3" data-kind="print"><span></span></div>
+          <div class="pin bus p4" data-kind="bus"><span></span></div>
+          <div class="pin toilet p5" data-kind="toilet"><span></span></div>
+          <div class="pin store p6" data-kind="store"><span></span></div>
+          <div class="pin subway p7" data-kind="subway"><span></span></div>
+        </div>
+        <div id="kakaoMap"></div>
+        <button class="locate" title="현재 위치" data-locate="1">⦿</button>
+        <button class="sos" data-goto="sos">SOS</button>
+        <article class="place-card">
+          <div class="place-title"><span><span id="cardType" data-ic="toilet" data-ic-size="16"></span> <span id="cardName">롯데리아 광화문점</span></span><span class="dist" id="cardDistance">52m</span></div>
+          <div class="meta" id="cardMeta">도보 1분 · 24시간 · 남/녀</div>
+          <div class="row-actions">
+            <button class="mini-btn cta" data-goto="route" id="cardRoute">길 안내</button>
+            <button class="mini-btn" id="cardDetail">상세</button>
+          </div>
+        </article>
+        <nav class="tabs">
+          <button class="tab active" data-goto="map"><b>⌖</b>지도</button>
+          <button class="tab" data-goto="list"><b>☰</b>리스트</button>
+          <button class="tab" data-goto="fav"><b>♡</b>즐겨찾기</button>
+        </nav>
+      </section>
+
+      <!-- 8. 리스트 -->
+      <section class="screen" data-screen="list">
+        <div class="page">
+          <div class="titlebar"><h2>근처</h2><button class="mini-btn" data-goto="map">지도로 보기</button></div>
+          <p class="sub" id="listSub">서울역 일대 · 반경 500m</p>
+          <div class="chips" id="listChips"></div>
+          <div class="list-toolbar"><span>가까운 순 ▼</span><span id="countLabel">전체 6</span></div>
+          <div id="placeList"></div>
+        </div>
+        <nav class="tabs">
+          <button class="tab" data-goto="map"><b>⌖</b>지도</button>
+          <button class="tab active" data-goto="list"><b>☰</b>리스트</button>
+          <button class="tab" data-goto="fav"><b>♡</b>즐겨찾기</button>
+        </nav>
+      </section>
+
+      <!-- 즐겨찾기 -->
+      <section class="screen" data-screen="fav">
+        <div class="page">
+          <div class="titlebar"><h2>즐겨찾기</h2><button class="mini-btn" data-goto="map">지도로 보기</button></div>
+          <p class="sub" id="favSub">하트를 누른 장소가 여기 모여요</p>
+          <div id="favList"></div>
+        </div>
+        <nav class="tabs">
+          <button class="tab" data-goto="map"><b>⌖</b>지도</button>
+          <button class="tab" data-goto="list"><b>☰</b>리스트</button>
+          <button class="tab active" data-goto="fav"><b>♡</b>즐겨찾기</button>
+        </nav>
+      </section>
+
+      <!-- 9. 상세 -->
+      <section class="screen" data-screen="detail">
+        <div class="page" style="padding-top:0">
+          <div class="detail-hero">
+            <span class="ph-label">매장 사진</span>
+            <div class="top-icons">
+              <button class="icon-btn" data-goto="map">←</button>
+              <button class="icon-btn heart" id="detailHeart" style="font-size:20px">♡</button>
+            </div>
+          </div>
+          <div class="detail-card">
+            <div class="badge toilet" id="detailBadge" data-ic="toilet" data-ic-size="20"></div>
+            <h2 id="detailName" style="margin:12px 0 4px">스타벅스 서울역점</h2>
+            <p class="sub" id="detailAddr">중구 한강대로 405 · 1층</p>
+            <div class="metrics">
+              <div class="metric">38m<span>거리</span></div>
+              <div class="metric">1분<span>도보</span></div>
+              <div class="metric">열림<span>상태</span></div>
+            </div>
+            <h3>화장실 정보</h3>
+            <div class="info-list">
+              <div class="info-row"><span>개방시간</span><b>평일 07:00~22:00</b></div>
+              <div class="info-row"><span>성별</span><b>남 1칸 · 녀 2칸</b></div>
+              <div class="info-row"><span>휠체어</span><b>가능 · 1층 입구 우측</b></div>
+              <div class="info-row"><span>비밀번호</span><b>없음</b></div>
+              <div class="info-row"><span>비데</span><b>있음</b></div>
+              <div class="info-row"><span>청결도</span><b>4.2 / 5 · 28명</b></div>
+              <div class="info-row"><span>전화</span><b class="phone-icon">📞 02-123-4567</b></div>
+            </div>
+            <button class="primary" style="width:100%" data-goto="route">길안내 시작 →</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- 10. 길찾기 -->
+      <section class="screen" data-screen="route">
+        <div class="route-map">
+          <div class="route-line"></div>
+          <div class="pin bus" style="left:74px;top:492px"><span style="display:block;width:8px;height:8px;background:#fff;border-radius:50%"></span></div>
+          <div class="pin toilet" data-kind="toilet" style="left:226px;top:118px"><span></span></div>
+          <div class="route-banner">↰ 좌회전 후 직진<br><small>28m 앞, 스타벅스 서울역점</small></div>
+          <div class="route-bottom">
+            <div><b class="dist">1분 · 38m</b><div class="meta">남은 거리</div></div>
+            <button class="mini-btn" data-goto="map">중단</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- 11. 검색 -->
+      <section class="screen" data-screen="search">
+        <div class="page search-page">
+          <div class="search-input">⌕ <input id="searchBox" placeholder="장소·주소 검색" style="border:0;outline:0;background:transparent;width:100%" value="광화문역"> <span style="margin-left:auto;cursor:pointer" id="searchClear">×</span></div>
+          <div class="list-toolbar"><span>최근 검색</span><span>전체 삭제</span></div>
+          <div class="recent">
+            <span class="pill">서울역 ×</span><span class="pill">강남역 ×</span><span class="pill">롯데월드 ×</span><span class="pill">회사 ×</span><span class="pill">엄마집 ×</span>
+          </div>
+          <h3>검색 결과</h3>
+          <div id="searchResults">
+            <div class="list-item" data-goto="map">
+              <div class="badge search" data-ic="location"></div><div><div class="item-name">광화문역 1번 출구</div><div class="meta">중구 세종대로 지하 172</div></div><b>›</b>
+            </div>
+            <div class="list-item" data-goto="detail">
+              <div class="badge toilet" data-ic="toilet"></div><div><div class="item-name">광화문역 공중화장실</div><div class="meta">지하 1층 · 개찰구 외부</div></div><b>›</b>
+            </div>
+            <div class="list-item">
+              <div class="badge subway" data-ic="subway"></div><div><div class="item-name">광화문역 5호선</div><div class="meta">중구 세종대로 · 1·5번 출구</div></div><b>›</b>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 12. 버스 상세 -->
+      <section class="screen" data-screen="bus">
+        <div class="bus-head">
+          <button class="icon-btn" data-goto="map">←</button>
+          <h2 style="margin:10px 0 2px">서울역 환승센터</h2>
+          <p class="sub">정류장 번호 02-001</p>
+        </div>
+        <div class="bus-list">
+          <h3>도착 예정 <span style="color:var(--brand-green)">LIVE</span></h3>
+          <div id="busRows"></div>
+          <p class="meta">💡 혼잡도는 서울시 교통정보센터 실시간 데이터 기반</p>
+        </div>
+      </section>
+
+      <!-- 13. SOS -->
+      <section class="screen sos-screen" data-screen="sos">
+        <div class="sos-header">🚨 급한 모드 ON</div>
+        <div class="sos-card">
+          <div class="big-pin"><span data-ic="toilet" data-ic-size="26"></span></div>
+          <h1 style="margin:0 0 18px">가장 가까운<br>화장실</h1>
+          <div class="item-name" id="sosName">스타벅스 서울역점</div>
+          <div class="meta" id="sosAddr">서울시 중구 한강대로 405</div>
+          <div class="sos-metrics">
+            <div class="metric">38m<span>거리</span></div>
+            <div class="metric">1분<span>도보</span></div>
+            <div class="metric">24h<span>개방</span></div>
+          </div>
+          <div class="item-tags"><span class="pill">남/녀</span><span class="pill">휠체어 OK</span><span class="pill">비데</span></div>
+          <button class="primary" style="width:100%;margin-top:22px" data-goto="route">👉 지금 바로 안내</button>
+          <button class="ghost" style="width:100%;margin-top:10px" data-goto="list">다음으로 가까운 3곳 보기 ↓</button>
+        </div>
+      </section>
+    </section>
+
+    <aside class="side">
+      <div class="panel">
+        <h2>존급 · 테스트 프로토타입</h2>
+        <p>PDF의 13개 앱 화면을 Design Spec v1 컬러 토큰에 맞춰 옮긴 클릭형 목업입니다. 카카오맵/공공데이터 키를 넣으면 실데이터로, 없으면 mock으로 동작합니다.</p>
+        <div class="swatches">
+          <span class="sw"><i style="background:var(--brand-green)"></i>brand-green</span>
+          <span class="sw"><i style="background:var(--lavender)"></i>lavender</span>
+          <span class="sw"><i style="background:var(--cream)"></i>cream</span>
+          <span class="sw"><i style="background:var(--map-bg)"></i>map-bg</span>
+          <span class="sw"><i style="background:var(--charcoal)"></i>charcoal</span>
+          <span class="sw"><i style="background:var(--pink-accent)"></i>pink-accent</span>
+        </div>
+        <div class="grid">
+          <div class="note">핀 규칙: 화·편·프 = 라벤더, 교통수단(버스·지하철) = 초록</div>
+          <div class="note">SOS = 초록(빨강 아님), 선택 칩 = 초록</div>
+          <div class="note">거리/상태 강조 숫자 = 초록</div>
+          <div class="note">이미지 자리 = 회색 박스 + "매장 사진"</div>
+        </div>
+      </div>
+      <div class="panel">
+        <h3>API 연동 (<span id="apiStatus"><span class="status-dot"></span>mock 모드</span>)</h3>
+        <p>아래 <code class="k">CONFIG</code> 값만 채우면 됩니다 (index.html 하단 스크립트).</p>
+        <ul class="source-list">
+          <li><b>카카오맵</b>: <code class="k">KAKAO_JS_KEY</code>에 JavaScript 키 입력 → 실제 지도 + 주변 화장실/편의점/프린터/지하철/버스 검색이 켜집니다. (developers.kakao.com에서 사이트 도메인 등록 필요)</li>
+          <li><b>공공데이터포털</b>: <code class="k">DATA_GO_KR_KEY</code>(디코딩 서비스키) 입력. 브라우저 CORS 때문에 <code class="k">PROXY</code>에 프록시 주소를 넣어야 합니다. 함께 드린 <code class="k">proxy.js</code>를 <code class="k">node proxy.js</code>로 실행 후 <code class="k">PROXY:"http://localhost:8787/"</code>.</li>
+          <li>화장실: 전국공중화장실표준데이터 / 버스: 서울 버스도착정보(혼잡도) / 편의점·프린터: 카카오 로컬 키워드·카테고리 검색.</li>
+        </ul>
+        <p style="margin-top:10px">자세한 셋업은 <a href="API_AND_REQUIREMENTS.md">API_AND_REQUIREMENTS.md</a> 참고.</p>
+      </div>
+    </aside>
+  </main>
+
+  <script>
+    /* =========================================================
+       API CONFIG — 여기 값만 채우면 실데이터로 전환됩니다.
+       비워두면 전부 mock 으로 안전하게 동작합니다.
+       ========================================================= */
+    const CONFIG = {
+      KAKAO_JS_KEY: "",   // 카카오 JavaScript 앱키 (지도 + 장소검색)
+      DATA_GO_KR_KEY: "", // 공공데이터포털 디코딩 서비스키 (화장실/버스)
+      PROXY: "",          // 공공데이터 CORS 우회 프록시 base 예: "http://localhost:8787/"
+      DEFAULT_CENTER: { lat: 37.5547, lng: 126.9707 }, // 서울역
+      RADIUS: 500
+    };
+
+    /* ---------- 아이콘 (인라인 SVG line set, currentColor 상속) ---------- */
+    const ICON_SVG = {
+      toilet:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3h4.6v5H7z"/><path d="M5.4 8h10.7c0 3.3-1.9 5.5-4.25 5.5H9.65C7.3 13.5 5.4 11.3 5.4 8z"/><path d="M10.75 13.5V18"/><path d="M8 18h5.5"/></svg>',
+      store:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9l1.2-4h13.6L20 9"/><path d="M4 9h16v2.1a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/><path d="M5.7 13.4V20h12.6v-6.6"/><path d="M10 20v-4.2h4V20"/></svg>',
+      print:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M7 8.5V4h10v4.5"/><rect x="4" y="8.5" width="16" height="6.6" rx="1.6"/><rect x="7" y="12.6" width="10" height="6" rx="1"/><circle cx="16.7" cy="11.2" r="0.7" fill="currentColor" stroke="none"/></svg>',
+      bus:     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3.5" width="16" height="13" rx="3"/><path d="M4 10.5h16"/><circle cx="8" cy="13.4" r="0.9" fill="currentColor" stroke="none"/><circle cx="16" cy="13.4" r="0.9" fill="currentColor" stroke="none"/><path d="M7 16.5l-1 3"/><path d="M17 16.5l1 3"/></svg>',
+      subway:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="14" height="14" rx="3.5"/><path d="M5 10.2h14"/><circle cx="9" cy="13.5" r="0.9" fill="currentColor" stroke="none"/><circle cx="15" cy="13.5" r="0.9" fill="currentColor" stroke="none"/><path d="M8 17l-2.6 3.5"/><path d="M16 17l2.6 3.5"/></svg>',
+      location:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s6.4-5.7 6.4-10.5A6.4 6.4 0 1 0 5.6 10.5C5.6 15.3 12 21 12 21z"/><circle cx="12" cy="10.2" r="2.3"/></svg>'
+    };
+    function iconSvg(kind, size = 18) {
+      const s = ICON_SVG[kind];
+      return s ? s.replace("<svg ", `<svg width="${size}" height="${size}" style="display:block" `) : "";
+    }
+    // 교통수단(버스·지하철)은 brand-green, 나머지 카테고리는 lavender (사양 확장)
+    const isTransit = kind => kind === "bus" || kind === "subway";
+
+    /* ---------- mock 데이터 ---------- */
+    const filters = [
+      { key: "all",    name: "전체" },
+      { key: "toilet", name: "화장실" },
+      { key: "store",  name: "편의점" },
+      { key: "print",  name: "프린터" },
+      { key: "subway", name: "지하철" },
+      { key: "bus",    name: "버스" }
+    ];
+    let places = [
+      { kind: "toilet", name: "스타벅스 서울역점", distance: 38, meta: "도보 1분 · 평일 07:00~22:00", tags: ["남/녀", "비데", "휠체어"], target: "detail", addr: "중구 한강대로 405" },
+      { kind: "toilet", name: "롯데리아 광화문점", distance: 52, meta: "도보 1분 · 24시간", tags: ["남/녀"], target: "detail", addr: "중구 세종대로" },
+      { kind: "store",  name: "GS25 서울역점", distance: 78, meta: "도보 1분 · 24시간", tags: ["현금", "ATM"], target: "detail", addr: "중구 한강대로" },
+      { kind: "subway", name: "서울역", distance: 95, meta: "도보 2분 · 1·4호선 · 공항철도", tags: ["1호선", "4호선"], target: "detail", addr: "중구 한강대로 405" },
+      { kind: "print",  name: "인쇄하는사람들", distance: 112, meta: "도보 2분 · 09:00~21:00", tags: ["컬러", "A3"], target: "detail", addr: "중구 통일로" },
+      { kind: "bus",    name: "서울역 버스환승센터", distance: 145, meta: "도보 2분 · 운행중", tags: [], target: "bus", addr: "중구 한강대로405" },
+      { kind: "subway", name: "시청역", distance: 160, meta: "도보 2분 · 1·2호선", tags: ["1호선", "2호선"], target: "detail", addr: "중구 세종대로" },
+      { kind: "store",  name: "CU 세종대로점", distance: 188, meta: "도보 3분 · 24시간", tags: ["택배", "ATM"], target: "detail", addr: "중구 세종대로" }
+    ];
+    let buses = [
+      { no: "471", to: "강남역", min: 2, level: "혼잡", cls: "hot" },
+      { no: "143", to: "정릉", min: 5, level: "보통", cls: "mid" },
+      { no: "100", to: "하계동", min: 8, level: "여유", cls: "low" },
+      { no: "402", to: "강남대치", min: 11, level: "보통", cls: "mid" }
+    ];
+    let activeFilter = "all";
+
+    /* ---------- 즐겨찾기 ---------- */
+    let favorites = [];
+    try { favorites = JSON.parse(localStorage.getItem("jongeup_fav") || "[]"); } catch (e) { favorites = []; }
+    function saveFav() { try { localStorage.setItem("jongeup_fav", JSON.stringify(favorites)); } catch (e) {} }
+    function isFav(name) { return favorites.some(f => f.name === name); }
+    function toggleFav(place) {
+      if (isFav(place.name)) favorites = favorites.filter(f => f.name !== place.name);
+      else favorites.push({ kind: place.kind, name: place.name, meta: place.meta, distance: place.distance, addr: place.addr, target: place.target, tags: place.tags || [] });
+      saveFav();
+      renderList();
+      renderFav();
+      syncDetailHeart();
+    }
+
+    /* ---------- 상세 ---------- */
+    let currentDetail = places[0];
+    function openDetail(place) {
+      currentDetail = place;
+      document.getElementById("detailName").textContent = place.name;
+      document.getElementById("detailAddr").textContent = place.addr || place.meta || "";
+      document.getElementById("detailBadge").innerHTML = iconSvg(place.kind, 20);
+      document.getElementById("detailBadge").className = "badge " + place.kind;
+      syncDetailHeart();
+      show("detail");
+    }
+    function syncDetailHeart() {
+      const h = document.getElementById("detailHeart");
+      if (!h) return;
+      const on = isFav(currentDetail.name);
+      h.classList.toggle("on", on);
+      h.textContent = on ? "♥" : "♡";
+    }
+
+    /* ---------- 화면 전환 ---------- */
+    function show(screen) {
+      document.querySelectorAll(".screen").forEach(el => el.classList.toggle("active", el.dataset.screen === screen));
+      document.querySelectorAll(".tab").forEach(tab => tab.classList.toggle("active", tab.dataset.goto === screen));
+      if (screen === "map" && kakao.ready) kakao.relayout();
+      if (screen === "fav") renderFav();
+    }
+    function bindNavigation(root = document) {
+      root.querySelectorAll("[data-goto]").forEach(el => {
+        if (el.__bound) return; el.__bound = true;
+        el.addEventListener("click", () => {
+          if (el.dataset.locate) requestLocation();
+          show(el.dataset.goto);
+        });
+      });
+    }
+
+    /* ---------- 필터 칩 ---------- */
+    function kindCount(key) { return key === "all" ? places.length : places.filter(p => p.kind === key).length; }
+    function renderChips(targetId) {
+      const target = document.getElementById(targetId);
+      target.innerHTML = filters.map(f => {
+        const ic = f.key === "all" ? "" : iconSvg(f.key, 15);
+        const cnt = targetId === "listChips" ? ` ${kindCount(f.key)}` : "";
+        return `<button class="chip ${f.key === activeFilter ? "active" : ""}" data-filter="${f.key}">${ic}<span>${f.name}${cnt}</span></button>`;
+      }).join("");
+      target.querySelectorAll("[data-filter]").forEach(btn => {
+        btn.addEventListener("click", () => {
+          activeFilter = btn.dataset.filter;
+          renderAll();
+          if (kakao.ready) loadKakaoPlaces();
+        });
+      });
+    }
+    function visiblePlaces() {
+      return activeFilter === "all" ? places : places.filter(p => p.kind === activeFilter);
+    }
+
+    function renderMap() {
+      document.querySelectorAll(".map .pin[data-kind]").forEach(pin => {
+        pin.classList.toggle("dim", activeFilter !== "all" && pin.dataset.kind !== activeFilter);
+      });
+      const first = visiblePlaces()[0] || places[0];
+      if (!first) return;
+      document.getElementById("cardType").innerHTML = iconSvg(first.kind, 16);
+      document.getElementById("cardName").textContent = first.name;
+      document.getElementById("cardDistance").textContent = first.distance + "m";
+      document.getElementById("cardMeta").textContent = first.meta;
+      const routeBtn = document.getElementById("cardRoute");
+      routeBtn.dataset.goto = first.kind === "bus" ? "bus" : "route";
+      const detailBtn = document.getElementById("cardDetail");
+      detailBtn.onclick = () => { if (first.kind === "bus") show("bus"); else openDetail(first); };
+    }
+
+    // 장소 리스트(하트 포함)를 컨테이너에 렌더 — 리스트/즐겨찾기 공용
+    function renderPlaceList(containerId, data, emptyHtml) {
+      const c = document.getElementById(containerId);
+      if (!c) return;
+      if (!data.length && emptyHtml) { c.innerHTML = emptyHtml; return; }
+      c.innerHTML = data.map(p => `
+        <div class="list-item">
+          <div class="badge ${p.kind}">${iconSvg(p.kind)}</div>
+          <div class="li-main" style="cursor:pointer">
+            <div class="item-name">${p.name} <span class="dist">${p.distance}m</span></div>
+            <div class="meta">${p.meta}</div>
+            <div class="item-tags">${(p.tags || []).map(t => `<span class="pill">${t}</span>`).join("")}${p.kind === "bus" ? '<span class="crowd">혼잡</span>' : ""}</div>
+          </div>
+          <button class="heart ${isFav(p.name) ? "on" : ""}" title="즐겨찾기">${isFav(p.name) ? "♥" : "♡"}</button>
+        </div>
+      `).join("");
+      c.querySelectorAll(".li-main").forEach((el, i) => {
+        el.addEventListener("click", () => {
+          const p = data[i];
+          if (p.target === "bus") show("bus"); else openDetail(p);
+        });
+      });
+      c.querySelectorAll(".heart").forEach((el, i) => {
+        el.addEventListener("click", e => { e.stopPropagation(); toggleFav(data[i]); });
+      });
+    }
+
+    function renderList() {
+      const list = visiblePlaces().slice().sort((a, b) => a.distance - b.distance);
+      const label = activeFilter === "all" ? "전체" : (filters.find(f => f.key === activeFilter)?.name || "");
+      document.getElementById("countLabel").textContent = `${label} ${list.length}`;
+      renderPlaceList("placeList", list);
+    }
+
+    function renderFav() {
+      const sub = document.getElementById("favSub");
+      if (sub) sub.textContent = favorites.length ? `저장한 장소 ${favorites.length}곳` : "하트를 누른 장소가 여기 모여요";
+      renderPlaceList("favList", favorites.slice().sort((a, b) => a.distance - b.distance),
+        `<div class="fav-empty"><span class="big">🤍</span>아직 즐겨찾기가 없어요.<br>장소 오른쪽 하트(♡)를 눌러 저장해 보세요.</div>`);
+    }
+
+    function renderBuses() {
+      document.getElementById("busRows").innerHTML = buses.map(bus => `
+        <div class="bus-row">
+          <div class="route-no">${bus.no}</div>
+          <div><b>→ ${bus.to}</b><div class="meta"><span class="dist">${bus.min}분</span> 후 도착</div></div>
+          <span class="level ${bus.cls}">${bus.level}</span>
+        </div>
+      `).join("");
+    }
+
+    function renderAll() {
+      renderChips("filterChips");
+      renderChips("listChips");
+      renderMap();
+      renderList();
+      renderFav();
+      renderBuses();
+    }
+
+    // 필터 칩: 마우스 휠/드래그로 좌우 스크롤 (데스크톱에서도 이동되게)
+    function enableDragScroll(el) {
+      el.addEventListener("wheel", e => {
+        if (e.deltaY === 0) return;
+        el.scrollLeft += e.deltaY;
+        e.preventDefault();
+      }, { passive: false });
+      let down = false, startX = 0, startL = 0;
+      el.addEventListener("pointerdown", e => { down = true; startX = e.clientX; startL = el.scrollLeft; });
+      el.addEventListener("pointermove", e => { if (down) el.scrollLeft = startL - (e.clientX - startX); });
+      window.addEventListener("pointerup", () => { down = false; });
+    }
+
+    /* =========================================================
+       카카오맵 연동 (KAKAO_JS_KEY 있을 때만)
+       ========================================================= */
+    const kakao = { ready: false, map: null, overlays: [], relayout(){ if(this.map) this.map.relayout(); } };
+
+    function loadKakaoSdk() {
+      return new Promise((resolve, reject) => {
+        if (!CONFIG.KAKAO_JS_KEY) return reject("no key");
+        const s = document.createElement("script");
+        s.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${CONFIG.KAKAO_JS_KEY}&libraries=services&autoload=false`;
+        s.onload = () => window.kakao.maps.load(resolve);
+        s.onerror = () => reject("sdk load fail");
+        document.head.appendChild(s);
+      });
+    }
+
+    async function initKakao(center) {
+      try {
+        await loadKakaoSdk();
+        const el = document.getElementById("kakaoMap");
+        el.style.display = "block";
+        document.querySelector(".map").style.display = "none";
+        kakao.map = new window.kakao.maps.Map(el, {
+          center: new window.kakao.maps.LatLng(center.lat, center.lng),
+          level: 3
+        });
+        // 내 위치 (brand-green 링)
+        new window.kakao.maps.CustomOverlay({
+          map: kakao.map,
+          position: new window.kakao.maps.LatLng(center.lat, center.lng),
+          content: `<div style="width:18px;height:18px;border-radius:50%;background:#06530B;border:4px solid #fff;box-shadow:0 0 0 8px rgba(6,83,11,.18)"></div>`
+        });
+        kakao.ready = true;
+        setApiStatus(true);
+        loadKakaoPlaces();
+      } catch (e) {
+        console.warn("[존급] 카카오맵 미사용 → mock 지도:", e);
+      }
+    }
+
+    // 카테고리 핀=라벤더, 교통수단(버스·지하철) 핀=초록
+    function pinHtml(kind) {
+      const bg = isTransit(kind) ? "#06530B" : "#BBBFEC";
+      return `<div style="width:30px;height:30px;border:2px solid #fff;border-radius:15px 15px 15px 3px;transform:rotate(-45deg);background:${bg};display:grid;place-items:center;box-shadow:0 6px 14px rgba(0,0,0,.2)"><span style="transform:rotate(45deg);color:#fff;display:grid;place-items:center">${iconSvg(kind, 16)}</span></div>`;
+    }
+
+    function clearOverlays() { kakao.overlays.forEach(o => o.setMap(null)); kakao.overlays = []; }
+
+    function loadKakaoPlaces() {
+      if (!kakao.ready) return;
+      clearOverlays();
+      const ps = new window.kakao.maps.services.Places();
+      const center = kakao.map.getCenter();
+      const opt = { location: center, radius: CONFIG.RADIUS, sort: window.kakao.maps.services.SortBy.DISTANCE };
+      // kind -> 카카오 검색 (카테고리코드 또는 키워드)
+      const queries = {
+        toilet: { kw: "화장실" },
+        store:  { cat: "CS2" },
+        print:  { kw: "무인프린트" },
+        subway: { cat: "SW8" },
+        bus:    { kw: "버스정류장" }
+      };
+      const kinds = activeFilter === "all" ? Object.keys(queries) : [activeFilter];
+      const collected = [];
+      let pending = kinds.length;
+      const done = () => {
+        if (--pending > 0) return;
+        if (collected.length) {
+          places = collected.sort((a,b)=>a.distance-b.distance);
+          renderList(); renderMap();
+        }
+      };
+      kinds.forEach(kind => {
+        const q = queries[kind];
+        const cb = (data, status) => {
+          if (status === window.kakao.maps.services.Status.OK) {
+            data.forEach(d => {
+              const pos = new window.kakao.maps.LatLng(d.y, d.x);
+              const ov = new window.kakao.maps.CustomOverlay({ map: kakao.map, position: pos, content: pinHtml(kind), yAnchor: 1 });
+              kakao.overlays.push(ov);
+              collected.push({
+                kind, name: d.place_name,
+                distance: Number(d.distance) || 0,
+                meta: d.road_address_name || d.address_name || "",
+                tags: d.category_group_name ? [d.category_group_name] : [],
+                target: kind === "bus" ? "bus" : "detail",
+                addr: d.road_address_name || d.address_name || ""
+              });
+            });
+          }
+          done();
+        };
+        if (q.cat) ps.categorySearch(q.cat, cb, opt);
+        else ps.keywordSearch(q.kw, cb, opt);
+      });
+    }
+
+    /* =========================================================
+       공공데이터포털 (CORS 프록시 경유)
+       ========================================================= */
+    function dataUrl(path, params) {
+      const qs = new URLSearchParams({ serviceKey: CONFIG.DATA_GO_KR_KEY, _type: "json", ...params }).toString();
+      return `${CONFIG.PROXY}${path}?${qs}`;
+    }
+
+    // 서울 버스도착정보(혼잡도) — 정류장 arsId 기준
+    async function fetchBusArrival(arsId) {
+      if (!CONFIG.DATA_GO_KR_KEY || !CONFIG.PROXY) return; // mock 유지
+      try {
+        const url = dataUrl("http://ws.bus.go.kr/api/rest/stationinfo/getStationByUid", { arsId });
+        const res = await fetch(url);
+        const json = await res.json();
+        const rows = json?.msgBody?.itemList || [];
+        const crowd = { 0:["여유","low"], 3:["여유","low"], 4:["보통","mid"], 5:["혼잡","hot"] };
+        buses = rows.slice(0, 6).map(r => {
+          const [level, cls] = crowd[r.congestion1] || ["보통","mid"];
+          const sec = Number(r.traTime1) || 0;
+          return { no: r.rtNm, to: r.adirection || "", min: Math.max(1, Math.round(sec/60)), level, cls };
+        });
+        renderBuses();
+      } catch (e) { console.warn("[존급] 버스 API 실패 → mock:", e); }
+    }
+
+    // 전국공중화장실표준데이터 (참고용 — 좌표는 주소 지오코딩 캐시 필요)
+    async function fetchPublicToilets(params = {}) {
+      if (!CONFIG.DATA_GO_KR_KEY || !CONFIG.PROXY) return [];
+      try {
+        const url = dataUrl("https://api.odcloud.kr/api/15012892/v1/uddi", { page: 1, perPage: 30, ...params });
+        const res = await fetch(url);
+        const json = await res.json();
+        return json?.data || [];
+      } catch (e) { console.warn("[존급] 화장실 API 실패:", e); return []; }
+    }
+
+    /* ---------- 위치 권한 ---------- */
+    function requestLocation() {
+      if (!navigator.geolocation) return startMap(CONFIG.DEFAULT_CENTER);
+      navigator.geolocation.getCurrentPosition(
+        pos => startMap({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+        () => startMap(CONFIG.DEFAULT_CENTER),
+        { timeout: 6000 }
+      );
+    }
+    let mapStarted = false;
+    function startMap(center) {
+      if (mapStarted) return; mapStarted = true;
+      if (CONFIG.KAKAO_JS_KEY) initKakao(center);
+    }
+
+    /* ---------- 상태 표시 ---------- */
+    function setApiStatus(on) {
+      document.getElementById("apiStatus").innerHTML =
+        `<span class="status-dot ${on ? "on" : ""}"></span>${on ? "카카오맵 연동됨" : "mock 모드"}`;
+    }
+
+    /* ---------- 검색 (카카오 키워드) ---------- */
+    function bindSearch() {
+      const box = document.getElementById("searchBox");
+      const clear = document.getElementById("searchClear");
+      clear.addEventListener("click", () => { box.value = ""; box.focus(); });
+      box.addEventListener("keydown", e => {
+        if (e.key !== "Enter" || !kakao.ready || !box.value.trim()) return;
+        const ps = new window.kakao.maps.services.Places();
+        ps.keywordSearch(box.value.trim(), (data, status) => {
+          if (status !== window.kakao.maps.services.Status.OK) return;
+          document.getElementById("searchResults").innerHTML = data.slice(0,8).map(d => `
+            <div class="list-item" data-goto="map">
+              <div class="badge search">${iconSvg("location")}</div>
+              <div><div class="item-name">${d.place_name}</div><div class="meta">${d.road_address_name || d.address_name || ""}</div></div><b>›</b>
+            </div>`).join("");
+          bindNavigation(document.getElementById("searchResults"));
+        });
+      });
+    }
+
+    // 정적 HTML 안의 아이콘 자리(지도 핀 / data-ic 뱃지·핀) 채우기
+    function paintStaticIcons() {
+      document.querySelectorAll(".pin[data-kind] > span").forEach(s => s.innerHTML = iconSvg(s.parentElement.dataset.kind, 16));
+      document.querySelectorAll("[data-ic]").forEach(el => el.innerHTML = iconSvg(el.dataset.ic, Number(el.getAttribute("data-ic-size")) || 18));
+    }
+
+    /* ---------- 부팅 ---------- */
+    bindNavigation();
+    bindSearch();
+    renderAll();
+    paintStaticIcons();
+    setApiStatus(false);
+    document.getElementById("detailHeart").addEventListener("click", () => toggleFav(currentDetail));
+    enableDragScroll(document.getElementById("filterChips"));
+    enableDragScroll(document.getElementById("listChips"));
+    // URL 해시로 특정 화면 바로 보기 (#map, #list, #detail, #route, #search, #bus, #sos)
+    const screens = ["splash","onboard","map","list","fav","detail","route","search","bus","sos"];
+    const fromHash = location.hash.replace("#", "");
+    if (screens.includes(fromHash)) {
+      show(fromHash);
+    } else {
+      setTimeout(() => show("onboard"), 900);
+    }
+    window.addEventListener("hashchange", () => {
+      const h = location.hash.replace("#", "");
+      if (screens.includes(h)) show(h);
+    });
+  </script>
+</body>
+</html>

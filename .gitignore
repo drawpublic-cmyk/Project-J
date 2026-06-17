@@ -1,0 +1,11 @@
+# IDE
+.idea/
+.vscode/
+
+# macOS
+.DS_Store
+
+# 테스트/임시 산출물
+_seed*.html
+*.log
+node_modules/
