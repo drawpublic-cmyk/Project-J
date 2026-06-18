@@ -242,6 +242,23 @@
       display: none;
       z-index: 1;
     }
+    /* 지도 상태/오류 안내 */
+    .map-status {
+      position: absolute;
+      left: 12px; right: 12px; top: 112px;
+      z-index: 8;
+      background: rgba(26,26,26,.88);
+      color: #fff;
+      border-radius: 12px;
+      padding: 9px 12px;
+      font-size: 12.5px;
+      font-weight: 800;
+      text-align: center;
+      box-shadow: 0 6px 18px rgba(0,0,0,.2);
+    }
+    .map-status.ok  { background: rgba(6,83,11,.92); }
+    .map-status.err { background: rgba(229,64,122,.96); }
+    .map-status[hidden] { display: none; }
     .park {
       position: absolute;
       top: 42px;
@@ -775,6 +792,7 @@
           <div class="pin subway p7" data-kind="subway"><span></span></div>
         </div>
         <div id="kakaoMap"></div>
+        <div id="mapStatus" class="map-status" hidden></div>
         <button class="locate" title="현재 위치" data-locate="1">⦿</button>
         <button class="sos" data-goto="sos">SOS</button>
         <article class="place-card">
@@ -959,13 +977,15 @@
     </aside>
   </main>
 
+  <!-- 로컬 전용 키 파일 (gitignore됨, 공개본엔 없어서 404 무시) -->
+  <script src="config.local.js"></script>
   <script>
     /* =========================================================
        API CONFIG — 여기 값만 채우면 실데이터로 전환됩니다.
        비워두면 전부 mock 으로 안전하게 동작합니다.
        ========================================================= */
     const CONFIG = {
-      KAKAO_JS_KEY: "",   // 카카오 JavaScript 앱키 (지도 + 장소검색)
+      KAKAO_JS_KEY: (window.JONGEUP_KAKAO_KEY || ""),   // 카카오 JS키: config.local.js 에서 주입(로컬), 공개본은 빈값=mock
       DATA_GO_KR_KEY: "", // 공공데이터포털 디코딩 서비스키 (화장실/버스)
       PROXY: "",          // 공공데이터 CORS 우회 프록시 base 예: "http://localhost:8787/"
       DEFAULT_CENTER: { lat: 37.5547, lng: 126.9707 }, // 서울역
@@ -1052,7 +1072,8 @@
     function show(screen) {
       document.querySelectorAll(".screen").forEach(el => el.classList.toggle("active", el.dataset.screen === screen));
       document.querySelectorAll(".tab").forEach(tab => tab.classList.toggle("active", tab.dataset.goto === screen));
-      if (screen === "map" && kakao.ready) kakao.relayout();
+      if (screen === "map" && kmap.ready) kmap.relayout();
+      if (screen === "map" && !mapStarted && CONFIG.KAKAO_JS_KEY) requestLocation(); // 지도 진입 시 실제 지도 자동 로드
       if (screen === "fav") renderFav();
     }
     function bindNavigation(root = document) {
@@ -1078,7 +1099,7 @@
         btn.addEventListener("click", () => {
           activeFilter = btn.dataset.filter;
           renderAll();
-          if (kakao.ready) loadKakaoPlaces();
+          if (kmap.ready) loadKakaoPlaces();
         });
       });
     }
@@ -1178,40 +1199,66 @@
     /* =========================================================
        카카오맵 연동 (KAKAO_JS_KEY 있을 때만)
        ========================================================= */
-    const kakao = { ready: false, map: null, overlays: [], relayout(){ if(this.map) this.map.relayout(); } };
+    const kmap = { ready: false, map: null, overlays: [], relayout(){ if(this.map) this.map.relayout(); } };
 
+    function mapStatus(msg, type) {
+      const e = document.getElementById("mapStatus");
+      if (!e) return;
+      if (!msg) { e.hidden = true; return; }
+      e.hidden = false;
+      e.className = "map-status" + (type ? " " + type : "");
+      e.textContent = msg;
+    }
+
+    let sdkLoading = null;
     function loadKakaoSdk() {
-      return new Promise((resolve, reject) => {
-        if (!CONFIG.KAKAO_JS_KEY) return reject("no key");
+      if (sdkLoading) return sdkLoading;
+      sdkLoading = new Promise((resolve, reject) => {
+        if (!CONFIG.KAKAO_JS_KEY) return reject("키 없음");
+        if (window.kakao && window.kakao.maps && window.kakao.maps.Map) return resolve();
         const s = document.createElement("script");
         s.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${CONFIG.KAKAO_JS_KEY}&libraries=services&autoload=false`;
-        s.onload = () => window.kakao.maps.load(resolve);
-        s.onerror = () => reject("sdk load fail");
+        s.onload = () => {
+          const t0 = Date.now();
+          (function ready() {
+            const m = window.kakao && window.kakao.maps;
+            if (m && typeof m.load === "function") return m.load(resolve);
+            if (m && m.Map) return resolve();           // 이미 초기화된 경우 폴백
+            if (Date.now() - t0 > 6000) return reject("SDK 초기화 시간초과");
+            setTimeout(ready, 80);
+          })();
+        };
+        s.onerror = () => reject("SDK 스크립트 로드 실패(키/도메인/서비스 확인)");
         document.head.appendChild(s);
       });
+      return sdkLoading;
     }
 
     async function initKakao(center) {
       try {
+        mapStatus("카카오 지도 불러오는 중…");
         await loadKakaoSdk();
         const el = document.getElementById("kakaoMap");
         el.style.display = "block";
         document.querySelector(".map").style.display = "none";
-        kakao.map = new window.kakao.maps.Map(el, {
+        kmap.map = new window.kakao.maps.Map(el, {
           center: new window.kakao.maps.LatLng(center.lat, center.lng),
           level: 3
         });
         // 내 위치 (brand-green 링)
-        new window.kakao.maps.CustomOverlay({
-          map: kakao.map,
+        kmap.meOverlay = new window.kakao.maps.CustomOverlay({
+          map: kmap.map,
           position: new window.kakao.maps.LatLng(center.lat, center.lng),
           content: `<div style="width:18px;height:18px;border-radius:50%;background:#06530B;border:4px solid #fff;box-shadow:0 0 0 8px rgba(6,83,11,.18)"></div>`
         });
-        kakao.ready = true;
+        kmap.ready = true;
         setApiStatus(true);
+        mapStatus("주변 장소 검색 중…", "ok");
         loadKakaoPlaces();
+        setTimeout(() => mapStatus(null), 1500);
       } catch (e) {
         console.warn("[존급] 카카오맵 미사용 → mock 지도:", e);
+        mapStatus("카카오맵 로드 실패: " + e + " · 강력 새로고침(⌘⇧R) 후 재시도", "err");
       }
     }
 
@@ -1221,13 +1268,13 @@
       return `<div style="width:30px;height:30px;border:2px solid #fff;border-radius:15px 15px 15px 3px;transform:rotate(-45deg);background:${bg};display:grid;place-items:center;box-shadow:0 6px 14px rgba(0,0,0,.2)"><span style="transform:rotate(45deg);color:#fff;display:grid;place-items:center">${iconSvg(kind, 16)}</span></div>`;
     }
 
-    function clearOverlays() { kakao.overlays.forEach(o => o.setMap(null)); kakao.overlays = []; }
+    function clearOverlays() { kmap.overlays.forEach(o => o.setMap(null)); kmap.overlays = []; }
 
     function loadKakaoPlaces() {
-      if (!kakao.ready) return;
+      if (!kmap.ready) return;
       clearOverlays();
       const ps = new window.kakao.maps.services.Places();
-      const center = kakao.map.getCenter();
+      const center = kmap.map.getCenter();
       const opt = { location: center, radius: CONFIG.RADIUS, sort: window.kakao.maps.services.SortBy.DISTANCE };
       // kind -> 카카오 검색 (카테고리코드 또는 키워드)
       const queries = {
@@ -1253,8 +1300,8 @@
           if (status === window.kakao.maps.services.Status.OK) {
             data.forEach(d => {
               const pos = new window.kakao.maps.LatLng(d.y, d.x);
-              const ov = new window.kakao.maps.CustomOverlay({ map: kakao.map, position: pos, content: pinHtml(kind), yAnchor: 1 });
-              kakao.overlays.push(ov);
+              const ov = new window.kakao.maps.CustomOverlay({ map: kmap.map, position: pos, content: pinHtml(kind), yAnchor: 1 });
+              kmap.overlays.push(ov);
               collected.push({
                 kind, name: d.place_name,
                 distance: Number(d.distance) || 0,
@@ -1310,13 +1357,21 @@
     }
 
     /* ---------- 위치 권한 ---------- */
+    // 지도는 즉시(기본 좌표) 띄우고, 위치 허용되면 그때 재중심 — 권한과 무관하게 항상 표시
     function requestLocation() {
-      if (!navigator.geolocation) return startMap(CONFIG.DEFAULT_CENTER);
+      startMap(CONFIG.DEFAULT_CENTER);
+      if (!navigator.geolocation) return;
       navigator.geolocation.getCurrentPosition(
-        pos => startMap({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-        () => startMap(CONFIG.DEFAULT_CENTER),
-        { timeout: 6000 }
+        pos => recenter({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+        err => { mapStatus("위치 권한 거부/실패(코드 " + err.code + ") — 서울역 기준으로 표시", "err"); setTimeout(() => mapStatus(null), 2800); },
+        { timeout: 8000, maximumAge: 60000 }
       );
+    }
+    function recenter(center) {
+      if (!kmap.ready || !kmap.map) return;
+      kmap.map.setCenter(new window.kakao.maps.LatLng(center.lat, center.lng));
+      if (kmap.meOverlay) kmap.meOverlay.setPosition(new window.kakao.maps.LatLng(center.lat, center.lng));
+      loadKakaoPlaces();
     }
     let mapStarted = false;
     function startMap(center) {
@@ -1336,7 +1391,7 @@
       const clear = document.getElementById("searchClear");
       clear.addEventListener("click", () => { box.value = ""; box.focus(); });
       box.addEventListener("keydown", e => {
-        if (e.key !== "Enter" || !kakao.ready || !box.value.trim()) return;
+        if (e.key !== "Enter" || !kmap.ready || !box.value.trim()) return;
         const ps = new window.kakao.maps.services.Places();
         ps.keywordSearch(box.value.trim(), (data, status) => {
           if (status !== window.kakao.maps.services.Status.OK) return;
@@ -1363,6 +1418,7 @@
     paintStaticIcons();
     setApiStatus(false);
     document.getElementById("detailHeart").addEventListener("click", () => toggleFav(currentDetail));
+    document.querySelectorAll("[data-locate]:not([data-goto])").forEach(b => b.addEventListener("click", requestLocation));
     enableDragScroll(document.getElementById("filterChips"));
     enableDragScroll(document.getElementById("listChips"));
     // URL 해시로 특정 화면 바로 보기 (#map, #list, #detail, #route, #search, #bus, #sos)

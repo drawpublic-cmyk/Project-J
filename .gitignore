@@ -5,7 +5,12 @@
 # macOS
 .DS_Store
 
+# 로컬 전용 키 (공개 금지)
+config.local.js
+
 # 테스트/임시 산출물
 _seed*.html
+_kt*.html
+_kakaotest.html
 *.log
 node_modules/
