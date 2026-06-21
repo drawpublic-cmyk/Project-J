@@ -316,16 +316,17 @@
     /* SOS 버튼: brand-green (빨강 금지) */
     .sos {
       position: absolute;
-      right: 17px;
-      bottom: 175px;
-      width: 60px;
-      height: 60px;
-      border-radius: 18px;
+      left: 18px;
+      bottom: 244px;
+      width: 44px;
+      height: 44px;
+      border-radius: 14px;
       border: 0;
       background: var(--brand-green);
       color: #fff;
+      font-size: 13px;
       font-weight: 1000;
-      box-shadow: 0 16px 30px rgba(6,83,11,.28);
+      box-shadow: 0 12px 24px rgba(6,83,11,.28);
       z-index: 7;
     }
     .locate {
@@ -1282,7 +1283,7 @@
         store:  { cat: "CS2" },
         print:  { kw: "무인프린트" },
         subway: { cat: "SW8" },
-        bus:    { kw: "버스정류장" }
+        bus:    { kw: "버스" }   // Kakao는 공공정류장 색인이 빈약 → 넓은 키워드로 최대한 노출(완전 커버는 공공정류소 API 필요)
       };
       const kinds = activeFilter === "all" ? Object.keys(queries) : [activeFilter];
       const collected = [];
@@ -1300,16 +1301,23 @@
           if (status === window.kakao.maps.services.Status.OK) {
             data.forEach(d => {
               const pos = new window.kakao.maps.LatLng(d.y, d.x);
-              const ov = new window.kakao.maps.CustomOverlay({ map: kmap.map, position: pos, content: pinHtml(kind), yAnchor: 1 });
-              kmap.overlays.push(ov);
-              collected.push({
+              const place = {
                 kind, name: d.place_name,
                 distance: Number(d.distance) || 0,
                 meta: d.road_address_name || d.address_name || "",
                 tags: d.category_group_name ? [d.category_group_name] : [],
                 target: kind === "bus" ? "bus" : "detail",
-                addr: d.road_address_name || d.address_name || ""
-              });
+                addr: d.road_address_name || d.address_name || "",
+                phone: d.phone || ""
+              };
+              // 핀을 클릭 가능한 요소로 만들어 상세 진입
+              const elPin = document.createElement("div");
+              elPin.innerHTML = pinHtml(kind);
+              elPin.style.cursor = "pointer";
+              elPin.addEventListener("click", () => { if (kind === "bus") show("bus"); else openDetail(place); });
+              const ov = new window.kakao.maps.CustomOverlay({ map: kmap.map, position: pos, content: elPin, yAnchor: 1, clickable: true });
+              kmap.overlays.push(ov);
+              collected.push(place);
             });
           }
           done();
@@ -1373,6 +1381,13 @@
       if (kmap.meOverlay) kmap.meOverlay.setPosition(new window.kakao.maps.LatLng(center.lat, center.lng));
       loadKakaoPlaces();
     }
+    // 검색 등으로 지도만 이동(내 위치 마커는 그대로) + 주변 재검색
+    function moveMapTo(center) {
+      if (!kmap.ready || !kmap.map) return false;
+      kmap.map.setCenter(new window.kakao.maps.LatLng(center.lat, center.lng));
+      loadKakaoPlaces();
+      return true;
+    }
     let mapStarted = false;
     function startMap(center) {
       if (mapStarted) return; mapStarted = true;
@@ -1395,12 +1410,21 @@
         const ps = new window.kakao.maps.services.Places();
         ps.keywordSearch(box.value.trim(), (data, status) => {
           if (status !== window.kakao.maps.services.Status.OK) return;
-          document.getElementById("searchResults").innerHTML = data.slice(0,8).map(d => `
-            <div class="list-item" data-goto="map">
+          const list = data.slice(0, 8);
+          const c = document.getElementById("searchResults");
+          c.innerHTML = list.map(d => `
+            <div class="list-item" style="cursor:pointer">
               <div class="badge search">${iconSvg("location")}</div>
               <div><div class="item-name">${d.place_name}</div><div class="meta">${d.road_address_name || d.address_name || ""}</div></div><b>›</b>
             </div>`).join("");
-          bindNavigation(document.getElementById("searchResults"));
+          // 결과 클릭 → 그 위치로 지도 이동 + 주변 재검색
+          c.querySelectorAll(".list-item").forEach((el, i) => {
+            el.addEventListener("click", () => {
+              const d = list[i];
+              moveMapTo({ lat: Number(d.y), lng: Number(d.x) });
+              show("map");
+            });
+          });
         });
       });
     }
@@ -1411,11 +1435,24 @@
       document.querySelectorAll("[data-ic]").forEach(el => el.innerHTML = iconSvg(el.dataset.ic, Number(el.getAttribute("data-ic-size")) || 18));
     }
 
+    // 목업 지도 핀 클릭 → 상세(버스는 버스 도착 화면)
+    function bindMockPins() {
+      document.querySelectorAll(".map .pin[data-kind]").forEach(pin => {
+        pin.style.cursor = "pointer";
+        pin.addEventListener("click", () => {
+          const kind = pin.dataset.kind;
+          if (kind === "bus") return show("bus");
+          openDetail(places.find(p => p.kind === kind) || places[0]);
+        });
+      });
+    }
+
     /* ---------- 부팅 ---------- */
     bindNavigation();
     bindSearch();
     renderAll();
     paintStaticIcons();
+    bindMockPins();
     setApiStatus(false);
     document.getElementById("detailHeart").addEventListener("click", () => toggleFav(currentDetail));
     document.querySelectorAll("[data-locate]:not([data-goto])").forEach(b => b.addEventListener("click", requestLocation));
