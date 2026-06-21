@@ -16,6 +16,13 @@
       --charcoal:    #1A1A1A; /* 본문 텍스트, 로고 글자 */
       --pink-accent: #E5407A; /* 보조 액센트(전화 아이콘, 검색 결과 핀) ※ 소량만 */
 
+      /* 카테고리별 색 (사용자 요청: 색으로 구분) */
+      --c-toilet: #2E86DE; /* 화장실 - 파랑 */
+      --c-store:  #16A34A; /* 편의점 - 초록 */
+      --c-print:  #8B5CF6; /* 프린터 - 보라 */
+      --c-subway: #F97316; /* 지하철 - 주황 */
+      --c-bus:    #0EA5A4; /* 버스   - 청록 */
+
       /* 토큰이 아닌 파생 중립색(선/뮤트/플레이스홀더) — 의미색 6종과 구분 */
       --line:  rgba(26, 26, 26, .12);
       --muted: rgba(26, 26, 26, .55);
@@ -298,11 +305,11 @@
       box-shadow: 0 7px 18px rgba(0,0,0,.16);
     }
     .pin span { transform: rotate(45deg); display: grid; place-items: center; color: #fff; }
-    .pin.toilet,
-    .pin.store,
-    .pin.print { background: var(--lavender); }      /* 카테고리 핀: 단일 라벤더 */
-    .pin.bus,
-    .pin.subway { background: var(--brand-green); }   /* 교통수단(버스·지하철) 핀: 초록 */
+    .pin.toilet { background: var(--c-toilet); }      /* 카테고리별 색 구분 */
+    .pin.store  { background: var(--c-store); }
+    .pin.print  { background: var(--c-print); }
+    .pin.subway { background: var(--c-subway); }
+    .pin.bus    { background: var(--c-bus); }
     .pin.search { background: var(--pink-accent); }   /* 검색 결과 핀: 핑크 액센트(소량) */
     .pin.dim { display: none; }
     .pin.p1 { left: 66px; top: 86px; }
@@ -446,11 +453,11 @@
       font-size: 13px;
     }
     .badge svg { display: block; }
-    .badge.toilet,
-    .badge.store,
-    .badge.print { background: var(--lavender); } /* 카테고리 뱃지: 단일 라벤더 */
-    .badge.bus,
-    .badge.subway { background: var(--brand-green); }
+    .badge.toilet { background: var(--c-toilet); } /* 카테고리별 색 구분 */
+    .badge.store  { background: var(--c-store); }
+    .badge.print  { background: var(--c-print); }
+    .badge.subway { background: var(--c-subway); }
+    .badge.bus    { background: var(--c-bus); }
     .badge.search { background: var(--pink-accent); }
     .li-main { text-align: left; min-width: 0; }
     .item-name { font-weight: 950; }
@@ -639,15 +646,20 @@
       font-weight: 950;
     }
     .level {
-      min-width: 42px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1px;
+      min-width: 52px;
       text-align: center;
-      border-radius: 999px;
-      padding: 6px 8px;
-      font-size: 12px;
+      border-radius: 14px;
+      padding: 5px 8px;
+      font-size: 11px;
       font-weight: 950;
       background: var(--field);
       color: var(--charcoal);
     }
+    .level .cat { font-size: 20px; line-height: 1; }
     .level.hot { background: rgba(229,64,122,.16); color: var(--pink-accent); }
     .level.mid { background: rgba(187,191,236,.4); color: var(--charcoal); }
     .level.low { background: rgba(6,83,11,.12); color: var(--brand-green); }
@@ -1107,9 +1119,11 @@
     function renderChips(targetId) {
       const target = document.getElementById(targetId);
       target.innerHTML = filters.map(f => {
-        const ic = f.key === "all" ? "" : iconSvg(f.key, 15);
+        const active = f.key === activeFilter;
+        const icColor = active ? "#fff" : (KIND_COLOR[f.key] || "var(--charcoal)");
+        const ic = f.key === "all" ? "" : `<span style="color:${icColor};display:flex">${iconSvg(f.key, 15)}</span>`;
         const cnt = targetId === "listChips" ? ` ${kindCount(f.key)}` : "";
-        return `<button class="chip ${f.key === activeFilter ? "active" : ""}" data-filter="${f.key}">${ic}<span>${f.name}${cnt}</span></button>`;
+        return `<button class="chip ${active ? "active" : ""}" data-filter="${f.key}">${ic}<span>${f.name}${cnt}</span></button>`;
       }).join("");
       target.querySelectorAll("[data-filter]").forEach(btn => {
         btn.addEventListener("click", () => {
@@ -1181,12 +1195,14 @@
         `<div class="fav-empty"><span class="big">🤍</span>아직 즐겨찾기가 없어요.<br>장소 오른쪽 하트(♡)를 눌러 저장해 보세요.</div>`);
     }
 
+    // 혼잡도 고양이 캐릭터 (여유=느긋, 보통=새침, 혼잡=놀란)
+    const CAT = { low: "😸", mid: "😼", hot: "🙀" };
     function renderBuses() {
       document.getElementById("busRows").innerHTML = buses.map(bus => `
         <div class="bus-row">
           <div class="route-no">${bus.no}</div>
           <div><b>→ ${bus.to}</b><div class="meta"><span class="dist">${bus.min}분</span> 후 도착</div></div>
-          <span class="level ${bus.cls}">${bus.level}</span>
+          <div class="level ${bus.cls}"><span class="cat">${CAT[bus.cls] || "😺"}</span>${bus.level}</div>
         </div>
       `).join("");
     }
@@ -1285,9 +1301,10 @@
       }
     }
 
-    // 카테고리 핀=라벤더, 교통수단(버스·지하철) 핀=초록
+    // 카테고리별 색 (CSS 변수와 동일)
+    const KIND_COLOR = { toilet: "#2E86DE", store: "#16A34A", print: "#8B5CF6", subway: "#F97316", bus: "#0EA5A4" };
     function pinHtml(kind) {
-      const bg = isTransit(kind) ? "#06530B" : "#BBBFEC";
+      const bg = KIND_COLOR[kind] || "#06530B";
       return `<div style="width:30px;height:30px;border:2px solid #fff;border-radius:15px 15px 15px 3px;transform:rotate(-45deg);background:${bg};display:grid;place-items:center;box-shadow:0 6px 14px rgba(0,0,0,.2)"><span style="transform:rotate(45deg);color:#fff;display:grid;place-items:center">${iconSvg(kind, 16)}</span></div>`;
     }
 
