@@ -856,20 +856,12 @@
             <h2 id="detailName" style="margin:12px 0 4px">스타벅스 서울역점</h2>
             <p class="sub" id="detailAddr">중구 한강대로 405 · 1층</p>
             <div class="metrics">
-              <div class="metric">38m<span>거리</span></div>
-              <div class="metric">1분<span>도보</span></div>
-              <div class="metric">열림<span>상태</span></div>
+              <div class="metric" id="mDist">38m<span>거리</span></div>
+              <div class="metric" id="mWalk">1분<span>도보</span></div>
+              <div class="metric" id="mStat">열림<span>상태</span></div>
             </div>
-            <h3>화장실 정보</h3>
-            <div class="info-list">
-              <div class="info-row"><span>개방시간</span><b>평일 07:00~22:00</b></div>
-              <div class="info-row"><span>성별</span><b>남 1칸 · 녀 2칸</b></div>
-              <div class="info-row"><span>휠체어</span><b>가능 · 1층 입구 우측</b></div>
-              <div class="info-row"><span>비밀번호</span><b>없음</b></div>
-              <div class="info-row"><span>비데</span><b>있음</b></div>
-              <div class="info-row"><span>청결도</span><b>4.2 / 5 · 28명</b></div>
-              <div class="info-row"><span>전화</span><b class="phone-icon">📞 02-123-4567</b></div>
-            </div>
+            <h3 id="detailInfoTitle">화장실 정보</h3>
+            <div class="info-list" id="detailInfo"></div>
             <button class="primary" style="width:100%" data-goto="route">길안내 시작 →</button>
           </div>
         </div>
@@ -916,13 +908,13 @@
       <section class="screen" data-screen="bus">
         <div class="bus-head">
           <button class="icon-btn" data-goto="map">←</button>
-          <h2 style="margin:10px 0 2px">서울역 환승센터</h2>
-          <p class="sub">정류장 번호 02-001</p>
+          <h2 id="busName" style="margin:10px 0 2px">서울역 환승센터</h2>
+          <p class="sub" id="busNo">정류장 번호 02-001</p>
         </div>
         <div class="bus-list">
           <h3>도착 예정 <span style="color:var(--brand-green)">LIVE</span></h3>
           <div id="busRows"></div>
-          <p class="meta">💡 혼잡도는 서울시 교통정보센터 실시간 데이터 기반</p>
+          <p class="meta">💡 도착·혼잡도는 공공데이터 버스도착정보 연동 시 실시간 표시 (현재는 샘플)</p>
         </div>
       </section>
 
@@ -1051,6 +1043,7 @@
     }
 
     /* ---------- 상세 ---------- */
+    const KIND_LABEL = { toilet: "화장실", store: "편의점", print: "프린터", subway: "지하철", bus: "버스정류장" };
     let currentDetail = places[0];
     function openDetail(place) {
       currentDetail = place;
@@ -1058,8 +1051,28 @@
       document.getElementById("detailAddr").textContent = place.addr || place.meta || "";
       document.getElementById("detailBadge").innerHTML = iconSvg(place.kind, 20);
       document.getElementById("detailBadge").className = "badge " + place.kind;
+      // 거리/도보 시간(걸음 ~67m/분), 상태
+      const dist = Number(place.distance) || 0;
+      document.getElementById("mDist").innerHTML = (dist ? dist + "m" : "—") + "<span>거리</span>";
+      document.getElementById("mWalk").innerHTML = (dist ? Math.max(1, Math.round(dist / 67)) + "분" : "—") + "<span>도보</span>";
+      document.getElementById("mStat").innerHTML = "영업<span>상태</span>";
+      // 종류별 정보 박스
+      document.getElementById("detailInfoTitle").textContent = (KIND_LABEL[place.kind] || "장소") + " 정보";
+      const rows = [["분류", KIND_LABEL[place.kind] || "-"], ["주소", place.addr || place.meta || "-"]];
+      if (place.tags && place.tags.length) rows.push(["태그", place.tags.join(" · ")]);
+      if (place.phone) rows.push(["전화", place.phone]);
+      rows.push(["거리", dist ? dist + "m (도보 " + Math.max(1, Math.round(dist / 67)) + "분)" : "-"]);
+      document.getElementById("detailInfo").innerHTML = rows.map(([k, v]) =>
+        `<div class="info-row"><span>${k}</span><b${k === "전화" ? ' class="phone-icon"' : ""}>${v}</b></div>`
+      ).join("");
       syncDetailHeart();
       show("detail");
+    }
+    // 버스 상세: 클릭한 정류소의 이름/번호 반영 (도착정보는 공공 API 연동 시 실데이터)
+    function openBus(place) {
+      document.getElementById("busName").textContent = place.name || "버스정류장";
+      document.getElementById("busNo").textContent = place.nodeid ? ("정류소 ID " + place.nodeid) : (place.addr || "정류소 정보");
+      show("bus");
     }
     function syncDetailHeart() {
       const h = document.getElementById("detailHeart");
@@ -1120,8 +1133,9 @@
       document.getElementById("cardMeta").textContent = first.meta;
       const routeBtn = document.getElementById("cardRoute");
       routeBtn.dataset.goto = first.kind === "bus" ? "bus" : "route";
+      routeBtn.onclick = first.kind === "bus" ? (() => openBus(first)) : null;
       const detailBtn = document.getElementById("cardDetail");
-      detailBtn.onclick = () => { if (first.kind === "bus") show("bus"); else openDetail(first); };
+      detailBtn.onclick = () => { if (first.kind === "bus") openBus(first); else openDetail(first); };
     }
 
     // 장소 리스트(하트 포함)를 컨테이너에 렌더 — 리스트/즐겨찾기 공용
@@ -1143,7 +1157,7 @@
       c.querySelectorAll(".li-main").forEach((el, i) => {
         el.addEventListener("click", () => {
           const p = data[i];
-          if (p.target === "bus") show("bus"); else openDetail(p);
+          if (p.target === "bus") openBus(p); else openDetail(p);
         });
       });
       c.querySelectorAll(".heart").forEach((el, i) => {
@@ -1331,7 +1345,7 @@
               const elPin = document.createElement("div");
               elPin.innerHTML = pinHtml(kind);
               elPin.style.cursor = "pointer";
-              elPin.addEventListener("click", () => { if (kind === "bus") show("bus"); else openDetail(place); });
+              elPin.addEventListener("click", () => { if (kind === "bus") openBus(place); else openDetail(place); });
               const ov = new window.kakao.maps.CustomOverlay({ map: kmap.map, position: pos, content: elPin, yAnchor: 1, clickable: true });
               kmap.overlays.push(ov);
               collected.push(place);
@@ -1458,7 +1472,7 @@
         pin.style.cursor = "pointer";
         pin.addEventListener("click", () => {
           const kind = pin.dataset.kind;
-          if (kind === "bus") return show("bus");
+          if (kind === "bus") return openBus(places.find(p => p.kind === "bus") || { name: "버스정류장" });
           openDetail(places.find(p => p.kind === kind) || places[0]);
         });
       });
