@@ -979,8 +979,8 @@
        ========================================================= */
     const CONFIG = {
       KAKAO_JS_KEY: (window.JONGEUP_KAKAO_KEY || ""),   // 카카오 JS키: config.local.js 에서 주입(로컬), 공개본은 빈값=mock
-      DATA_GO_KR_KEY: "", // 공공데이터포털 디코딩 서비스키 (화장실/버스)
-      PROXY: "",          // 공공데이터 CORS 우회 프록시 base 예: "http://localhost:8787/"
+      DATA_GO_KR_KEY: (window.JONGEUP_DATAGO_KEY || ""), // 공공데이터 서비스키 (TAGO 버스): config.local.js 주입
+      PROXY: (window.JONGEUP_PROXY || ""),              // 공공데이터 CORS 우회 프록시 (node proxy.js)
       DEFAULT_CENTER: { lat: 37.5547, lng: 126.9707 }, // 서울역
       RADIUS: 500
     };
@@ -1071,7 +1071,9 @@
     // 버스 상세: 클릭한 정류소의 이름/번호 반영 (도착정보는 공공 API 연동 시 실데이터)
     function openBus(place) {
       document.getElementById("busName").textContent = place.name || "버스정류장";
-      document.getElementById("busNo").textContent = place.nodeid ? ("정류소 ID " + place.nodeid) : (place.addr || "정류소 정보");
+      document.getElementById("busNo").textContent =
+        place.nodeno ? ("정류소 번호 " + place.nodeno) :
+        place.nodeid ? ("정류소 ID " + place.nodeid) : (place.addr || "정류소 정보");
       show("bus");
     }
     function syncDetailHeart() {
@@ -1326,36 +1328,58 @@
           renderList(); renderMap();
         }
       };
+      // 클릭 가능한 핀 추가 + collected 적재 (카카오/TAGO 공용)
+      const addPin = (place, lat, lng) => {
+        const elPin = document.createElement("div");
+        elPin.innerHTML = pinHtml(place.kind);
+        elPin.style.cursor = "pointer";
+        elPin.addEventListener("click", () => { if (place.kind === "bus") openBus(place); else openDetail(place); });
+        kmap.overlays.push(new window.kakao.maps.CustomOverlay({
+          map: kmap.map, position: new window.kakao.maps.LatLng(lat, lng), content: elPin, yAnchor: 1, clickable: true
+        }));
+        collected.push(place);
+      };
       kinds.forEach(kind => {
+        // 버스: 공공데이터 TAGO 정류소(프록시 경유) — 전국 실제 정류장
+        if (kind === "bus" && CONFIG.DATA_GO_KR_KEY && CONFIG.PROXY) {
+          fetchBusStops(center.getLat(), center.getLng())
+            .then(stops => (stops || []).forEach(s => addPin({
+              kind: "bus", name: s.name, distance: Math.round(haversine(center.getLat(), center.getLng(), s.lat, s.lng)),
+              meta: "버스정류장", tags: [], target: "bus", addr: "", nodeid: s.nodeid, nodeno: s.nodeno
+            }, s.lat, s.lng)))
+            .catch(e => console.warn("[존급] 버스 정류소 API 실패:", e))
+            .finally(done);
+          return;
+        }
         const q = queries[kind];
         const cb = (data, status) => {
           if (status === window.kakao.maps.services.Status.OK) {
-            data.forEach(d => {
-              const pos = new window.kakao.maps.LatLng(d.y, d.x);
-              const place = {
-                kind, name: d.place_name,
-                distance: Number(d.distance) || 0,
-                meta: d.road_address_name || d.address_name || "",
-                tags: d.category_group_name ? [d.category_group_name] : [],
-                target: kind === "bus" ? "bus" : "detail",
-                addr: d.road_address_name || d.address_name || "",
-                phone: d.phone || ""
-              };
-              // 핀을 클릭 가능한 요소로 만들어 상세 진입
-              const elPin = document.createElement("div");
-              elPin.innerHTML = pinHtml(kind);
-              elPin.style.cursor = "pointer";
-              elPin.addEventListener("click", () => { if (kind === "bus") openBus(place); else openDetail(place); });
-              const ov = new window.kakao.maps.CustomOverlay({ map: kmap.map, position: pos, content: elPin, yAnchor: 1, clickable: true });
-              kmap.overlays.push(ov);
-              collected.push(place);
-            });
+            data.forEach(d => addPin({
+              kind, name: d.place_name, distance: Number(d.distance) || 0,
+              meta: d.road_address_name || d.address_name || "",
+              tags: d.category_group_name ? [d.category_group_name] : [],
+              target: kind === "bus" ? "bus" : "detail",
+              addr: d.road_address_name || d.address_name || "", phone: d.phone || ""
+            }, d.y, d.x));
           }
           done();
         };
         if (q.cat) ps.categorySearch(q.cat, cb, opt);
         else ps.keywordSearch(q.kw, cb, opt);
       });
+    }
+
+    // 공공데이터 TAGO 좌표기반 근접 버스정류소 (프록시 경유)
+    async function fetchBusStops(lat, lng) {
+      const base = "http://apis.data.go.kr/1613000/BusSttnInfoInqireService/getCrdntPrxmtSttnList";
+      const qs = new URLSearchParams({ serviceKey: CONFIG.DATA_GO_KR_KEY, gpsLati: lat, gpsLong: lng, numOfRows: 30, pageNo: 1, _type: "json" });
+      const res = await fetch(CONFIG.PROXY + base + "?" + qs.toString());
+      const json = await res.json();
+      const items = json && json.response && json.response.body && json.response.body.items;
+      if (!items || !items.item) return [];
+      const arr = Array.isArray(items.item) ? items.item : [items.item];
+      return arr.map(it => ({ name: it.nodenm, lat: Number(it.gpslati), lng: Number(it.gpslong), nodeid: it.nodeid, nodeno: it.nodeno }))
+                .filter(s => s.lat && s.lng);
     }
 
     /* =========================================================
