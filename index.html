@@ -815,7 +815,7 @@
       <section class="screen" data-screen="list">
         <div class="page">
           <div class="titlebar"><h2>근처</h2><button class="mini-btn" data-goto="map">지도로 보기</button></div>
-          <p class="sub" id="listSub">서울역 일대 · 반경 500m</p>
+          <p class="sub" id="listSub">지도에 보이는 지역 · 가까운 순</p>
           <div class="chips" id="listChips"></div>
           <div class="list-toolbar"><span>가까운 순 ▼</span><span id="countLabel">전체 6</span></div>
           <div id="placeList"></div>
@@ -1257,6 +1257,12 @@
         mapStatus("주변 장소 검색 중…", "ok");
         loadKakaoPlaces();
         setTimeout(() => mapStatus(null), 1500);
+        // 지도를 움직이면(이동·확대) 그 지역을 다시 검색 → 전국 어디든 탐색 가능
+        let idleTimer;
+        window.kakao.maps.event.addListener(kmap.map, "idle", () => {
+          clearTimeout(idleTimer);
+          idleTimer = setTimeout(loadKakaoPlaces, 450);
+        });
       } catch (e) {
         console.warn("[존급] 카카오맵 미사용 → mock 지도:", e);
         mapStatus("카카오맵 로드 실패: " + e + " · 강력 새로고침(⌘⇧R) 후 재시도", "err");
@@ -1271,17 +1277,28 @@
 
     function clearOverlays() { kmap.overlays.forEach(o => o.setMap(null)); kmap.overlays = []; }
 
+    // 두 좌표 간 거리(m)
+    function haversine(lat1, lng1, lat2, lng2) {
+      const R = 6371000, toRad = d => d * Math.PI / 180;
+      const dLat = toRad(lat2 - lat1), dLng = toRad(lng2 - lng1);
+      const a = Math.sin(dLat/2)**2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng/2)**2;
+      return 2 * R * Math.asin(Math.sqrt(a));
+    }
+
     function loadKakaoPlaces() {
       if (!kmap.ready) return;
       clearOverlays();
       const ps = new window.kakao.maps.services.Places();
       const center = kmap.map.getCenter();
-      const opt = { location: center, radius: CONFIG.RADIUS, sort: window.kakao.maps.services.SortBy.DISTANCE };
+      // 보이는 화면 영역을 반경으로 환산 → 지도를 움직이면 그 지역이 검색됨(카카오 최대 20km)
+      const b = kmap.map.getBounds(), ne = b.getNorthEast();
+      const radius = Math.min(20000, Math.max(300, Math.round(haversine(center.getLat(), center.getLng(), ne.getLat(), ne.getLng()))));
+      const opt = { location: center, radius, sort: window.kakao.maps.services.SortBy.DISTANCE };
       // kind -> 카카오 검색 (카테고리코드 또는 키워드)
       const queries = {
         toilet: { kw: "화장실" },
         store:  { cat: "CS2" },
-        print:  { kw: "무인프린트" },
+        print:  { kw: "인쇄" },   // '무인프린트'는 0건 → '인쇄'(인쇄소/출력) 가 실질적으로 잡힘
         subway: { cat: "SW8" },
         bus:    { kw: "버스" }   // Kakao는 공공정류장 색인이 빈약 → 넓은 키워드로 최대한 노출(완전 커버는 공공정류소 API 필요)
       };
