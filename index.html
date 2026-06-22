@@ -926,7 +926,7 @@
         <div class="bus-list">
           <h3>도착 예정 <span style="color:var(--brand-green)">LIVE</span></h3>
           <div id="busRows"></div>
-          <p class="meta">💡 도착·혼잡도는 공공데이터 버스도착정보 연동 시 실시간 표시 (현재는 샘플)</p>
+          <p class="meta">🚌 실시간 도착정보 (공공데이터 TAGO) · 고양이=도착 임박도 · 혼잡도는 미제공(서울/경기만)</p>
         </div>
       </section>
 
@@ -1083,13 +1083,36 @@
       syncDetailHeart();
       show("detail");
     }
-    // 버스 상세: 클릭한 정류소의 이름/번호 반영 (도착정보는 공공 API 연동 시 실데이터)
-    function openBus(place) {
+    // 버스 상세: 정류소명/번호 + 실시간 도착정보(TAGO)
+    async function openBus(place) {
       document.getElementById("busName").textContent = place.name || "버스정류장";
       document.getElementById("busNo").textContent =
         place.nodeno ? ("정류소 번호 " + place.nodeno) :
         place.nodeid ? ("정류소 ID " + place.nodeid) : (place.addr || "정류소 정보");
       show("bus");
+      const rows = document.getElementById("busRows");
+      if (place.citycode && place.nodeid && CONFIG.DATA_GO_KR_KEY && CONFIG.PROXY) {
+        rows.innerHTML = '<p class="meta">실시간 도착정보 불러오는 중…</p>';
+        try {
+          const arrs = await fetchBusArrivals(place.citycode, place.nodeid);
+          if (arrs.length) renderBusArrivals(arrs);
+          else rows.innerHTML = '<p class="meta">지금 도착 예정 버스가 없어요 (배차 간격·막차 등)</p>';
+        } catch (e) { console.warn("[존급] 도착정보 실패:", e); renderBuses(); }
+      } else {
+        renderBuses(); // 정보 없는 정류소(서울 등) → 샘플
+      }
+    }
+    // 실시간 도착정보 렌더 (고양이는 '도착 임박도': 곧/조금/여유)
+    function renderBusArrivals(list) {
+      document.getElementById("busRows").innerHTML = list.map(a => {
+        const lv = a.min <= 2 ? ["hot", "곧도착", "🙀"] : a.min <= 6 ? ["mid", "조금", "😼"] : ["low", "여유", "😸"];
+        return `
+        <div class="bus-row">
+          <div class="route-no">${a.no}</div>
+          <div><b><span class="dist">${a.min}분</span> 후 도착</b><div class="meta">${a.prev}정거장 전${a.tp ? " · " + a.tp : ""}</div></div>
+          <div class="level ${lv[0]}"><span class="cat">${lv[2]}</span>${lv[1]}</div>
+        </div>`;
+      }).join("");
     }
     function syncDetailHeart() {
       const h = document.getElementById("detailHeart");
@@ -1366,7 +1389,7 @@
             .then(stops => {
               (stops || []).forEach(s => addPin({
                 kind: "bus", name: s.name, distance: Math.round(haversine(center.getLat(), center.getLng(), s.lat, s.lng)),
-                meta: "버스정류장", tags: [], target: "bus", addr: "", nodeid: s.nodeid, nodeno: s.nodeno
+                meta: "버스정류장", tags: [], target: "bus", addr: "", nodeid: s.nodeid, nodeno: s.nodeno, citycode: s.citycode
               }, s.lat, s.lng));
               // 서울 등 TAGO 미수록 지역 안내 (버스 필터일 때만)
               if (activeFilter === "bus" && (!stops || !stops.length)) {
@@ -1405,8 +1428,23 @@
       const items = json && json.response && json.response.body && json.response.body.items;
       if (!items || !items.item) return [];
       const arr = Array.isArray(items.item) ? items.item : [items.item];
-      return arr.map(it => ({ name: it.nodenm, lat: Number(it.gpslati), lng: Number(it.gpslong), nodeid: it.nodeid, nodeno: it.nodeno }))
+      return arr.map(it => ({ name: it.nodenm, lat: Number(it.gpslati), lng: Number(it.gpslong), nodeid: it.nodeid, nodeno: it.nodeno, citycode: it.citycode }))
                 .filter(s => s.lat && s.lng);
+    }
+
+    // 공공데이터 TAGO 정류소별 도착정보 (프록시 경유)
+    async function fetchBusArrivals(cityCode, nodeId) {
+      const base = "http://apis.data.go.kr/1613000/ArvlInfoInqireService/getSttnAcctoArvlPrearngeInfoList";
+      const qs = new URLSearchParams({ serviceKey: CONFIG.DATA_GO_KR_KEY, cityCode, nodeId, numOfRows: 20, pageNo: 1, _type: "json" });
+      const res = await fetch(CONFIG.PROXY + base + "?" + qs.toString());
+      const json = await res.json();
+      const items = json && json.response && json.response.body && json.response.body.items;
+      if (!items || !items.item) return [];
+      const arr = Array.isArray(items.item) ? items.item : [items.item];
+      return arr.map(a => ({
+        no: a.routeno, min: Math.max(1, Math.round((Number(a.arrtime) || 0) / 60)),
+        prev: Number(a.arrprevstationcnt) || 0, tp: a.routetp || ""
+      })).sort((x, y) => x.min - y.min);
     }
 
     /* =========================================================
