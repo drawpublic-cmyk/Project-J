@@ -990,9 +990,12 @@
        비워두면 전부 mock 으로 안전하게 동작합니다.
        ========================================================= */
     const CONFIG = {
-      KAKAO_JS_KEY: (window.JONGEUP_KAKAO_KEY || ""),   // 카카오 JS키: config.local.js 에서 주입(로컬), 공개본은 빈값=mock
-      DATA_GO_KR_KEY: (window.JONGEUP_DATAGO_KEY || ""), // 공공데이터 서비스키 (TAGO 버스): config.local.js 주입
-      PROXY: (window.JONGEUP_PROXY || ""),              // 공공데이터 CORS 우회 프록시 (node proxy.js)
+      // 카카오 JS키는 '도메인 제한'이 걸려 등록 도메인 외에선 못 써서 공개본에 폴백으로 둠
+      // (반드시 카카오 콘솔 Web 플랫폼에 사용할 도메인을 등록해야 함)
+      KAKAO_JS_KEY: (window.JONGEUP_KAKAO_KEY || "486620a76d228ef13b4eefaee60b306a"),
+      // ⚠️ 공공데이터 키/프록시는 공개 금지(도메인 제한 없음) → 로컬 config.local.js 에서만 주입
+      DATA_GO_KR_KEY: (window.JONGEUP_DATAGO_KEY || ""),
+      PROXY: (window.JONGEUP_PROXY || ""),
       DEFAULT_CENTER: { lat: 37.5547, lng: 126.9707 }, // 서울역
       RADIUS: 500
     };
