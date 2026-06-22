@@ -1363,10 +1363,17 @@
         // 버스: 공공데이터 TAGO 정류소(프록시 경유) — 전국 실제 정류장
         if (kind === "bus" && CONFIG.DATA_GO_KR_KEY && CONFIG.PROXY) {
           fetchBusStops(center.getLat(), center.getLng())
-            .then(stops => (stops || []).forEach(s => addPin({
-              kind: "bus", name: s.name, distance: Math.round(haversine(center.getLat(), center.getLng(), s.lat, s.lng)),
-              meta: "버스정류장", tags: [], target: "bus", addr: "", nodeid: s.nodeid, nodeno: s.nodeno
-            }, s.lat, s.lng)))
+            .then(stops => {
+              (stops || []).forEach(s => addPin({
+                kind: "bus", name: s.name, distance: Math.round(haversine(center.getLat(), center.getLng(), s.lat, s.lng)),
+                meta: "버스정류장", tags: [], target: "bus", addr: "", nodeid: s.nodeid, nodeno: s.nodeno
+              }, s.lat, s.lng));
+              // 서울 등 TAGO 미수록 지역 안내 (버스 필터일 때만)
+              if (activeFilter === "bus" && (!stops || !stops.length)) {
+                mapStatus("이 지역은 버스정류소 데이터가 없어요 (TAGO 미수록·서울 등). 지도를 옮겨보세요", "err");
+                setTimeout(() => mapStatus(null), 4000);
+              }
+            })
             .catch(e => console.warn("[존급] 버스 정류소 API 실패:", e))
             .finally(done);
           return;
