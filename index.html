@@ -975,7 +975,7 @@
         <ul class="source-list">
           <li><b>카카오맵</b>: <code class="k">KAKAO_JS_KEY</code>에 JavaScript 키 입력 → 실제 지도 + 주변 화장실/편의점/프린터/지하철/버스 검색이 켜집니다. (developers.kakao.com에서 사이트 도메인 등록 필요)</li>
           <li><b>공공데이터포털</b>: <code class="k">DATA_GO_KR_KEY</code>(디코딩 서비스키) 입력. 브라우저 CORS 때문에 <code class="k">PROXY</code>에 프록시 주소를 넣어야 합니다. 함께 드린 <code class="k">proxy.js</code>를 <code class="k">node proxy.js</code>로 실행 후 <code class="k">PROXY:"http://localhost:8787/"</code>.</li>
-          <li>화장실: 전국공중화장실표준데이터 / 버스: 서울 버스도착정보(혼잡도) / 편의점·프린터: 카카오 로컬 키워드·카테고리 검색.</li>
+          <li>화장실: 카카오 키워드(화장실·공중·개방) + <code class="k">TOILET_DATA_URL</code>에 전국공중화장실표준데이터 odcloud 주소를 넣으면 <b>개방화장실</b>까지 표시(좌표 없는 데이터라 주소를 자동 지오코딩). 버스: 도착정보(혼잡도) / 편의점·프린터: 카카오 검색(프린터는 무인·셀프 출력만).</li>
         </ul>
         <p style="margin-top:10px">자세한 셋업은 <a href="API_AND_REQUIREMENTS.md">API_AND_REQUIREMENTS.md</a> 참고.</p>
       </div>
@@ -996,6 +996,10 @@
       // ⚠️ 공공데이터 키/프록시는 공개 금지(도메인 제한 없음) → 로컬 config.local.js 에서만 주입
       DATA_GO_KR_KEY: (window.JONGEUP_DATAGO_KEY || ""),
       PROXY: (window.JONGEUP_PROXY || ""),
+      // 전국공중화장실표준데이터(개방화장실 포함)의 odcloud UDDI '전체 URL'.
+      // data.go.kr에서 활용신청하면 계정마다 고유한 /v1/uddi/<uuid> 주소를 받음 → 그걸 그대로 붙여넣기.
+      // 2025.02 정책변경으로 이 데이터엔 좌표가 없어 주소를 카카오 지오코더로 변환해 사용함.
+      TOILET_DATA_URL: (window.JONGEUP_TOILET_URL || ""),
       DEFAULT_CENTER: { lat: 37.5547, lng: 126.9707 }, // 서울역
       RADIUS: 500
     };
@@ -1030,7 +1034,7 @@
       { kind: "toilet", name: "롯데리아 광화문점", distance: 52, meta: "도보 1분 · 24시간", tags: ["남/녀"], target: "detail", addr: "중구 세종대로" },
       { kind: "store",  name: "GS25 서울역점", distance: 78, meta: "도보 1분 · 24시간", tags: ["현금", "ATM"], target: "detail", addr: "중구 한강대로" },
       { kind: "subway", name: "서울역", distance: 95, meta: "도보 2분 · 1·4호선 · 공항철도", tags: ["1호선", "4호선"], target: "detail", addr: "중구 한강대로 405" },
-      { kind: "print",  name: "인쇄하는사람들", distance: 112, meta: "도보 2분 · 09:00~21:00", tags: ["컬러", "A3"], target: "detail", addr: "중구 통일로" },
+      { kind: "print",  name: "무인프린트 광화문점", distance: 112, meta: "도보 2분 · 24시간 셀프출력", tags: ["컬러", "A3", "셀프"], target: "detail", addr: "중구 통일로" },
       { kind: "bus",    name: "서울역 버스환승센터", distance: 145, meta: "도보 2분 · 운행중", tags: [], target: "bus", addr: "중구 한강대로405" },
       { kind: "subway", name: "시청역", distance: 160, meta: "도보 2분 · 1·2호선", tags: ["1호선", "2호선"], target: "detail", addr: "중구 세종대로" },
       { kind: "store",  name: "CU 세종대로점", distance: 188, meta: "도보 3분 · 24시간", tags: ["택배", "ATM"], target: "detail", addr: "중구 세종대로" }
@@ -1355,15 +1359,30 @@
       const opt = { location: center, radius, sort: window.kakao.maps.services.SortBy.DISTANCE };
       // kind -> 카카오 검색 (카테고리코드 또는 키워드)
       const queries = {
-        toilet: { kw: "화장실" },
+        toilet: { kws: ["화장실", "공중화장실", "개방화장실"] },   // 개방형 건물·공중 화장실까지 폭넓게
         store:  { cat: "CS2" },
-        print:  { kw: "인쇄" },   // '무인프린트'는 0건 → '인쇄'(인쇄소/출력) 가 실질적으로 잡힘
+        // 고객이 직접 출력 가능한 곳만(무인/셀프 프린트). 인쇄업체·제조·광고 등 B2B는 exclude로 제외
+        print:  { kws: ["무인프린트", "무인출력", "셀프프린트", "셀프출력", "프린트카페"],
+                  exclude: /인쇄|제조|광고|기획|디자인|출판|옵셋|간판|현수막|의류|티셔츠/ },
         subway: { cat: "SW8" },
         bus:    { kw: "버스" }   // Kakao는 공공정류장 색인이 빈약 → 넓은 키워드로 최대한 노출(완전 커버는 공공정류소 API 필요)
       };
       const kinds = activeFilter === "all" ? Object.keys(queries) : [activeFilter];
       const collected = [];
-      let pending = kinds.length;
+      const seen = new Set();
+      // 실행할 검색 작업 목록 (키워드 1개 = 작업 1개). print는 키워드가 여러 개라 작업도 여러 개
+      const tasks = [];
+      kinds.forEach(kind => {
+        if (kind === "bus" && CONFIG.DATA_GO_KR_KEY && CONFIG.PROXY) { tasks.push({ kind, bus: true }); return; }
+        const q = queries[kind];
+        if (q.cat) tasks.push({ kind, cat: q.cat });
+        else (q.kws || [q.kw]).forEach(kw => tasks.push({ kind, kw, exclude: q.exclude }));
+        // 화장실: 카카오 키워드 + 공공 개방화장실 표준데이터(지오코딩) 를 동시 레이어로
+        if (kind === "toilet" && CONFIG.DATA_GO_KR_KEY && CONFIG.PROXY && CONFIG.TOILET_DATA_URL) {
+          tasks.push({ kind, openToilet: true });
+        }
+      });
+      let pending = tasks.length;
       const done = () => {
         if (--pending > 0) return;
         if (collected.length) {
@@ -1371,8 +1390,11 @@
           renderList(); renderMap();
         }
       };
-      // 클릭 가능한 핀 추가 + collected 적재 (카카오/TAGO 공용)
+      // 클릭 가능한 핀 추가 + collected 적재 (카카오/TAGO 공용, 좌표 중복 제거)
       const addPin = (place, lat, lng) => {
+        const dk = place.kind + "@" + Number(lat).toFixed(5) + "," + Number(lng).toFixed(5);
+        if (seen.has(dk)) return;       // 다중 키워드로 같은 곳이 중복 검색돼도 핀 1개만
+        seen.add(dk);
         const elPin = document.createElement("div");
         elPin.innerHTML = pinHtml(place.kind);
         elPin.style.cursor = "pointer";
@@ -1382,9 +1404,9 @@
         }));
         collected.push(place);
       };
-      kinds.forEach(kind => {
+      tasks.forEach(t => {
         // 버스: 공공데이터 TAGO 정류소(프록시 경유) — 전국 실제 정류장
-        if (kind === "bus" && CONFIG.DATA_GO_KR_KEY && CONFIG.PROXY) {
+        if (t.bus) {
           fetchBusStops(center.getLat(), center.getLng())
             .then(stops => {
               (stops || []).forEach(s => addPin({
@@ -1401,21 +1423,32 @@
             .finally(done);
           return;
         }
-        const q = queries[kind];
+        // 개방화장실 포함 공공 표준데이터(주소→좌표 지오코딩)
+        if (t.openToilet) {
+          fetchOpenToilets(center.getLat(), center.getLng())
+            .then(list => (list || []).forEach(p => addPin(p, p.lat, p.lng)))
+            .catch(e => console.warn("[존급] 개방화장실 API 실패:", e))
+            .finally(done);
+          return;
+        }
         const cb = (data, status) => {
           if (status === window.kakao.maps.services.Status.OK) {
-            data.forEach(d => addPin({
-              kind, name: d.place_name, distance: Number(d.distance) || 0,
-              meta: d.road_address_name || d.address_name || "",
-              tags: d.category_group_name ? [d.category_group_name] : [],
-              target: kind === "bus" ? "bus" : "detail",
-              addr: d.road_address_name || d.address_name || "", phone: d.phone || ""
-            }, d.y, d.x));
+            data.forEach(d => {
+              // 프린터: 고객이 출력 못 하는 인쇄업체/제조/광고 등은 카테고리·상호로 걸러냄
+              if (t.exclude && t.exclude.test((d.category_name || "") + " " + d.place_name)) return;
+              addPin({
+                kind: t.kind, name: d.place_name, distance: Number(d.distance) || 0,
+                meta: d.road_address_name || d.address_name || "",
+                tags: d.category_group_name ? [d.category_group_name] : [],
+                target: t.kind === "bus" ? "bus" : "detail",
+                addr: d.road_address_name || d.address_name || "", phone: d.phone || ""
+              }, d.y, d.x);
+            });
           }
           done();
         };
-        if (q.cat) ps.categorySearch(q.cat, cb, opt);
-        else ps.keywordSearch(q.kw, cb, opt);
+        if (t.cat) ps.categorySearch(t.cat, cb, opt);
+        else ps.keywordSearch(t.kw, cb, opt);
       });
     }
 
@@ -1473,15 +1506,61 @@
       } catch (e) { console.warn("[존급] 버스 API 실패 → mock:", e); }
     }
 
-    // 전국공중화장실표준데이터 (참고용 — 좌표는 주소 지오코딩 캐시 필요)
-    async function fetchPublicToilets(params = {}) {
-      if (!CONFIG.DATA_GO_KR_KEY || !CONFIG.PROXY) return [];
+    // 전국공중화장실표준데이터 행 가져오기 (개방화장실 포함, 좌표 없음 → 주소만)
+    async function fetchPublicToilets(perPage = 300) {
+      if (!CONFIG.DATA_GO_KR_KEY || !CONFIG.PROXY || !CONFIG.TOILET_DATA_URL) return [];
       try {
-        const url = dataUrl("https://api.odcloud.kr/api/15012892/v1/uddi", { page: 1, perPage: 30, ...params });
-        const res = await fetch(url);
+        const qs = new URLSearchParams({ serviceKey: CONFIG.DATA_GO_KR_KEY, page: 1, perPage }).toString();
+        const res = await fetch(CONFIG.PROXY + CONFIG.TOILET_DATA_URL + "?" + qs);
         const json = await res.json();
-        return json?.data || [];
-      } catch (e) { console.warn("[존급] 화장실 API 실패:", e); return []; }
+        return json?.data || json?.response?.body?.items || [];   // odcloud / 표준 응답 양쪽 대응
+      } catch (e) { console.warn("[존급] 화장실 표준데이터 실패:", e); return []; }
+    }
+
+    // 주소 → 좌표 (카카오 지오코더) + localStorage 캐시. 표준데이터에 좌표가 없어 필수.
+    let geoCache = null;
+    const GEO_KEY = "jongeup_geo_v1";
+    function geoStore() {
+      if (geoCache) return geoCache;
+      try { geoCache = JSON.parse(localStorage.getItem(GEO_KEY) || "{}"); } catch { geoCache = {}; }
+      return geoCache;
+    }
+    function geocode(addr) {
+      return new Promise(resolve => {
+        if (!addr || !window.kakao?.maps?.services) return resolve(null);
+        const cache = geoStore();
+        if (addr in cache) return resolve(cache[addr]);   // null(실패)도 캐시해 재조회 방지
+        new window.kakao.maps.services.Geocoder().addressSearch(addr, (res, status) => {
+          const ok = status === window.kakao.maps.services.Status.OK && res[0];
+          cache[addr] = ok ? { lat: Number(res[0].y), lng: Number(res[0].x) } : null;
+          try { localStorage.setItem(GEO_KEY, JSON.stringify(cache)); } catch {}
+          resolve(cache[addr]);
+        });
+      });
+    }
+
+    // 개방화장실 포함 공공 화장실 → 주소 지오코딩 후 반경 내만 반환 (좌표 변환 비용↑ → 최대 40건 캡)
+    async function fetchOpenToilets(lat, lng) {
+      const rows = await fetchPublicToilets();
+      if (!rows.length) return [];
+      const CAP = 40;
+      if (rows.length > CAP) console.info(`[존급] 화장실 ${rows.length}건 중 ${CAP}건만 좌표변환(MVP 제한)`);
+      const out = [];
+      for (const r of rows.slice(0, CAP)) {
+        const addr = r["소재지도로명주소"] || r["소재지지번주소"] || r.address || "";
+        const c = await geocode(addr);
+        if (!c) continue;
+        const distance = Math.round(haversine(lat, lng, c.lat, c.lng));
+        if (distance > 3000) continue;   // 3km 이내만
+        const type = r["구분"] || "";                                   // 공중화장실 / 개방화장실
+        const open = r["개방시간상세"] || r["개방시간"] || "";
+        out.push({
+          kind: "toilet", name: r["화장실명"] || r.name || "공중화장실", distance,
+          meta: addr, addr, target: "detail",
+          tags: [type, open].filter(Boolean), lat: c.lat, lng: c.lng
+        });
+      }
+      return out;
     }
 
     /* ---------- 위치 권한 ---------- */
