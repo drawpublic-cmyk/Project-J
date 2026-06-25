@@ -1361,9 +1361,13 @@
       const queries = {
         toilet: { kws: ["화장실", "공중화장실", "개방화장실"] },   // 개방형 건물·공중 화장실까지 폭넓게
         store:  { cat: "CS2" },
-        // 고객이 직접 출력 가능한 곳만(무인/셀프 프린트). 인쇄업체·제조·광고 등 B2B는 exclude로 제외
-        print:  { kws: ["무인프린트", "무인출력", "셀프프린트", "셀프출력", "프린트카페"],
-                  exclude: /인쇄|제조|광고|기획|디자인|출판|옵셋|간판|현수막|의류|티셔츠/ },
+        // 고객이 직접 출력 가능한 곳(무인/셀프). 넓은 토큰 '프린트'로 프린트히어로24·프린트올데이·무인프린트24 등 브랜드까지 포착,
+        // '프린클라피'처럼 토큰 다른 브랜드는 개별 추가. 인쇄업체·사진/포토·3D·티셔츠 등 비문서 출력은 exclude로 제외
+        print:  { kws: ["프린트", "무인프린트", "무인출력", "셀프출력", "프린트카페", "프린클라피"],
+                  // ① 양성: 상호/업종이 출력·인쇄 계열인 곳만 통과 → 복권방·편의점 등 '프린트 키워드만 단' 엉뚱 업종 차단
+                  include: /프린트|출력|복사|인쇄|프린클라피/,
+                  // ② 음성: ①을 통과해도 비문서 출력(사진/3D 등)·프린터 기기 거래업체(매입/렌탈/토너/수리)는 제외
+                  exclude: /사진|포토|3D|스티커|티셔츠|의류|패브릭|라벨|간판|현수막|매입|매매|판매|렌탈|렌털|임대|리스|수리|토너|잉크|충전|복합기|사무기기|중고|도매|유통|수입|총판/ },
         subway: { cat: "SW8" },
         bus:    { kw: "버스" }   // Kakao는 공공정류장 색인이 빈약 → 넓은 키워드로 최대한 노출(완전 커버는 공공정류소 API 필요)
       };
@@ -1376,7 +1380,7 @@
         if (kind === "bus" && CONFIG.DATA_GO_KR_KEY && CONFIG.PROXY) { tasks.push({ kind, bus: true }); return; }
         const q = queries[kind];
         if (q.cat) tasks.push({ kind, cat: q.cat });
-        else (q.kws || [q.kw]).forEach(kw => tasks.push({ kind, kw, exclude: q.exclude }));
+        else (q.kws || [q.kw]).forEach(kw => tasks.push({ kind, kw, include: q.include, exclude: q.exclude }));
         // 화장실: 카카오 키워드 + 공공 개방화장실 표준데이터(지오코딩) 를 동시 레이어로
         if (kind === "toilet" && CONFIG.DATA_GO_KR_KEY && CONFIG.PROXY && CONFIG.TOILET_DATA_URL) {
           tasks.push({ kind, openToilet: true });
@@ -1434,8 +1438,10 @@
         const cb = (data, status) => {
           if (status === window.kakao.maps.services.Status.OK) {
             data.forEach(d => {
-              // 프린터: 고객이 출력 못 하는 인쇄업체/제조/광고 등은 카테고리·상호로 걸러냄
-              if (t.exclude && t.exclude.test((d.category_name || "") + " " + d.place_name)) return;
+              // 프린터: 업종/상호 기준 양성·음성 필터 (복권방 등 엉뚱 업종·기기 거래업체 차단)
+              const hay = (d.category_name || "") + " " + d.place_name;
+              if (t.include && !t.include.test(hay)) return;
+              if (t.exclude && t.exclude.test(hay)) return;
               addPin({
                 kind: t.kind, name: d.place_name, distance: Number(d.distance) || 0,
                 meta: d.road_address_name || d.address_name || "",
