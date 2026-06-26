@@ -458,6 +458,8 @@
     .badge.print  { background: var(--c-print); }
     .badge.subway { background: var(--c-subway); }
     .badge.bus    { background: var(--c-bus); }
+    .badge.busroute { background: var(--c-bus); }
+    .badge.subwayline { background: var(--c-subway); }
     .badge.search { background: var(--pink-accent); }
     .li-main { text-align: left; min-width: 0; }
     .item-name { font-weight: 950; }
@@ -627,8 +629,9 @@
     .bus-list { padding: 16px 18px 90px; }
     .bus-row {
       display: grid;
-      grid-template-columns: 54px 1fr auto;
-      gap: 10px;
+      grid-template-columns: 54px 1fr auto auto;
+      column-gap: 10px;
+      row-gap: 7px;
       align-items: center;
       padding: 12px;
       background: var(--cream);
@@ -636,6 +639,32 @@
       border-radius: 16px;
       margin-bottom: 10px;
     }
+    .bus-info { cursor: pointer; min-width: 0; text-align: left; }
+    /* '몇 정거장 전'(위치)을 행 아래 두 번째 줄 전체폭으로 */
+    .bus-pos {
+      grid-column: 1 / -1;
+      display: flex; align-items: center; gap: 3px;
+      font-size: 12px; font-weight: 800; color: var(--muted);
+      padding-top: 7px; border-top: 1px dashed var(--line);
+    }
+    .bus-pos b { color: var(--charcoal); }
+
+    /* ---------- 노선 타임라인 (버스/지하철이 어디쯤) ---------- */
+    .line-head { padding: 14px 18px 16px; background: var(--lavender); border-bottom: 1px solid var(--line); }
+    .line-wrap { padding: 18px 22px 90px; overflow-y: auto; height: calc(100% - 132px); }
+    .line-stop { display: grid; grid-template-columns: 26px 1fr; gap: 12px; align-items: center; }
+    .line-node { position: relative; height: 46px; display: flex; align-items: center; justify-content: center; }
+    .line-node::before { content: ""; position: absolute; top: 0; bottom: 0; width: 3px; background: var(--line); }
+    .line-stop:first-child .line-node::before { top: 50%; }
+    .line-stop:last-child .line-node::before { bottom: 50%; }
+    .line-dot { width: 13px; height: 13px; border-radius: 50%; background: #cdd2cf; border: 2px solid #fff; z-index: 1; }
+    .line-stop.here .line-dot { background: var(--brand-green); width: 18px; height: 18px; }
+    .line-bus { font-size: 21px; z-index: 2; line-height: 1; }
+    .line-label { font-weight: 850; }
+    .line-label small { color: var(--muted); font-weight: 750; font-size: 12px; }
+    .line-stop.here .line-label { color: var(--brand-green); }
+    .line-stop.dest .line-label { color: var(--pink-accent); }
+    .line-label.faint { color: var(--muted); font-weight: 700; }
     .route-no {
       height: 34px;
       border-radius: 9px;
@@ -644,6 +673,11 @@
       background: var(--brand-green);
       color: #fff;
       font-weight: 950;
+      font-size: 12px;          /* 'GTX-A'·'경의중앙' 등 긴 라벨도 박스 안에 */
+      line-height: 1.1;
+      padding: 0 2px;
+      text-align: center;
+      word-break: keep-all;
     }
     .level {
       display: flex;
@@ -842,8 +876,9 @@
       <!-- 즐겨찾기 -->
       <section class="screen" data-screen="fav">
         <div class="page">
-          <div class="titlebar"><h2>즐겨찾기</h2><button class="mini-btn" data-goto="map">지도로 보기</button></div>
+          <div class="titlebar"><h2>즐겨찾기</h2><button class="mini-btn" id="favClear">전체 삭제</button></div>
           <p class="sub" id="favSub">하트를 누른 장소가 여기 모여요</p>
+          <div class="chips" id="favChips"></div>
           <div id="favList"></div>
         </div>
         <nav class="tabs">
@@ -877,6 +912,11 @@
             <button class="primary" style="width:100%" data-goto="route">길안내 시작 →</button>
           </div>
         </div>
+        <nav class="tabs">
+          <button class="tab" data-goto="map"><b>⌖</b>지도</button>
+          <button class="tab" data-goto="list"><b>☰</b>리스트</button>
+          <button class="tab" data-goto="fav"><b>♡</b>즐겨찾기</button>
+        </nav>
       </section>
 
       <!-- 10. 길찾기 -->
@@ -896,38 +936,55 @@
       <!-- 11. 검색 -->
       <section class="screen" data-screen="search">
         <div class="page search-page">
-          <div class="search-input">⌕ <input id="searchBox" placeholder="장소·주소 검색" style="border:0;outline:0;background:transparent;width:100%" value="광화문역"> <span style="margin-left:auto;cursor:pointer" id="searchClear">×</span></div>
-          <div class="list-toolbar"><span>최근 검색</span><span>전체 삭제</span></div>
-          <div class="recent">
-            <span class="pill">서울역 ×</span><span class="pill">강남역 ×</span><span class="pill">롯데월드 ×</span><span class="pill">회사 ×</span><span class="pill">엄마집 ×</span>
+          <div style="display:flex;align-items:center;gap:8px">
+            <button class="icon-btn" data-goto="map" title="뒤로">←</button>
+            <div class="search-input" style="flex:1;margin:0">⌕ <input id="searchBox" placeholder="장소·주소 검색" style="border:0;outline:0;background:transparent;width:100%"> <span style="cursor:pointer" id="searchClear">×</span></div>
           </div>
+          <div class="list-toolbar"><span>최근 검색</span><span id="recentClear" style="cursor:pointer;color:var(--pink-accent)">전체 삭제</span></div>
+          <div class="recent" id="recentList"></div>
           <h3>검색 결과</h3>
-          <div id="searchResults">
-            <div class="list-item" data-goto="map">
-              <div class="badge search" data-ic="location"></div><div><div class="item-name">광화문역 1번 출구</div><div class="meta">중구 세종대로 지하 172</div></div><b>›</b>
-            </div>
-            <div class="list-item" data-goto="detail">
-              <div class="badge toilet" data-ic="toilet"></div><div><div class="item-name">광화문역 공중화장실</div><div class="meta">지하 1층 · 개찰구 외부</div></div><b>›</b>
-            </div>
-            <div class="list-item">
-              <div class="badge subway" data-ic="subway"></div><div><div class="item-name">광화문역 5호선</div><div class="meta">중구 세종대로 · 1·5번 출구</div></div><b>›</b>
-            </div>
-          </div>
+          <div id="searchResults"><p class="meta">검색어를 입력하고 Enter를 누르세요.</p></div>
         </div>
       </section>
 
       <!-- 12. 버스 상세 -->
       <section class="screen" data-screen="bus">
         <div class="bus-head">
-          <button class="icon-btn" data-goto="map">←</button>
-          <h2 id="busName" style="margin:10px 0 2px">서울역 환승센터</h2>
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+            <button class="icon-btn" data-goto="map">←</button>
+            <button class="icon-btn heart" id="busHeart" style="font-size:22px" title="이 정류소 즐겨찾기">♡</button>
+          </div>
+          <h2 id="busName" style="margin:8px 0 2px">서울역 환승센터</h2>
           <p class="sub" id="busNo">정류장 번호 02-001</p>
         </div>
         <div class="bus-list">
+          <button class="primary" id="busRoute" style="width:100%;margin-bottom:14px">🧭 여기로 길찾기</button>
           <h3>도착 예정 <span style="color:var(--brand-green)">LIVE</span></h3>
           <div id="busRows"></div>
-          <p class="meta">🚌 실시간 도착정보 (공공데이터 TAGO) · 고양이=도착 임박도 · 혼잡도는 미제공(서울/경기만)</p>
+          <p class="meta" id="busFootNote">🚌 행을 누르면 노선에서 어디쯤 오는지 보여요 · 하트=그 노선만 즐겨찾기</p>
         </div>
+        <nav class="tabs">
+          <button class="tab" data-goto="map"><b>⌖</b>지도</button>
+          <button class="tab" data-goto="list"><b>☰</b>리스트</button>
+          <button class="tab" data-goto="fav"><b>♡</b>즐겨찾기</button>
+        </nav>
+      </section>
+
+      <!-- 12-1. 노선 타임라인 (어디쯤 오는지) -->
+      <section class="screen" data-screen="busline">
+        <div class="line-head">
+          <button class="icon-btn" id="lineBack">←</button>
+          <h2 id="lineTitle" style="margin:8px 0 2px">471번</h2>
+          <p class="sub" id="lineSub">강남역 방면 · 🚌 3정거장 전</p>
+        </div>
+        <div class="line-wrap"><div id="lineStops"></div>
+          <p class="meta" style="margin-top:14px">※ 노선 경로는 샘플 UI입니다. 공공데이터 키 연동 시 실제 정류장·실시간 위치로 표시됩니다.</p>
+        </div>
+        <nav class="tabs">
+          <button class="tab" data-goto="map"><b>⌖</b>지도</button>
+          <button class="tab" data-goto="list"><b>☰</b>리스트</button>
+          <button class="tab" data-goto="fav"><b>♡</b>즐겨찾기</button>
+        </nav>
       </section>
 
       <!-- 13. SOS -->
@@ -1000,6 +1057,8 @@
       // data.go.kr에서 활용신청하면 계정마다 고유한 /v1/uddi/<uuid> 주소를 받음 → 그걸 그대로 붙여넣기.
       // 2025.02 정책변경으로 이 데이터엔 좌표가 없어 주소를 카카오 지오코더로 변환해 사용함.
       TOILET_DATA_URL: (window.JONGEUP_TOILET_URL || ""),
+      // 서울 열린데이터광장 '지하철 실시간 도착정보'(OA-12764) 인증키. 발급 즉시 사용, 'sample'로 테스트 가능. 프록시 필요.
+      SEOUL_SUBWAY_KEY: (window.JONGEUP_SUBWAY_KEY || ""),
       DEFAULT_CENTER: { lat: 37.5547, lng: 126.9707 }, // 서울역
       RADIUS: 500
     };
@@ -1013,6 +1072,8 @@
       subway:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="14" height="14" rx="3.5"/><path d="M5 10.2h14"/><circle cx="9" cy="13.5" r="0.9" fill="currentColor" stroke="none"/><circle cx="15" cy="13.5" r="0.9" fill="currentColor" stroke="none"/><path d="M8 17l-2.6 3.5"/><path d="M16 17l2.6 3.5"/></svg>',
       location:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s6.4-5.7 6.4-10.5A6.4 6.4 0 1 0 5.6 10.5C5.6 15.3 12 21 12 21z"/><circle cx="12" cy="10.2" r="2.3"/></svg>'
     };
+    ICON_SVG.busroute = ICON_SVG.bus;       // 버스 노선 즐겨찾기는 버스 아이콘 재사용
+    ICON_SVG.subwayline = ICON_SVG.subway;  // 지하철 노선 즐겨찾기는 지하철 아이콘 재사용
     function iconSvg(kind, size = 18) {
       const s = ICON_SVG[kind];
       return s ? s.replace("<svg ", `<svg width="${size}" height="${size}" style="display:block" `) : "";
@@ -1040,30 +1101,125 @@
       { kind: "store",  name: "CU 세종대로점", distance: 188, meta: "도보 3분 · 24시간", tags: ["택배", "ATM"], target: "detail", addr: "중구 세종대로" }
     ];
     let buses = [
-      { no: "471", to: "강남역", min: 2, level: "혼잡", cls: "hot" },
-      { no: "143", to: "정릉", min: 5, level: "보통", cls: "mid" },
-      { no: "100", to: "하계동", min: 8, level: "여유", cls: "low" },
-      { no: "402", to: "강남대치", min: 11, level: "보통", cls: "mid" }
+      { no: "471", to: "강남역", min: 2, prev: 1, level: "혼잡", cls: "hot" },
+      { no: "143", to: "정릉", min: 5, prev: 3, level: "보통", cls: "mid" },
+      { no: "100", to: "하계동", min: 8, prev: 5, level: "여유", cls: "low" },
+      { no: "402", to: "강남대치", min: 11, prev: 7, level: "보통", cls: "mid" }
+    ];
+    // 지하철 도착(샘플) — 버스와 동일 스키마(no=호선, to=방면, prev=N역 전)
+    let subwayMock = [
+      { no: "1호선", to: "인천·신창(하행)", min: 2, prev: 1, level: "혼잡", cls: "hot" },
+      { no: "1호선", to: "소요산(상행)", min: 6, prev: 3, level: "보통", cls: "mid" },
+      { no: "4호선", to: "오이도(하행)", min: 4, prev: 2, level: "여유", cls: "low" },
+      { no: "4호선", to: "당고개(상행)", min: 9, prev: 5, level: "보통", cls: "mid" }
     ];
     let activeFilter = "all";
 
     /* ---------- 즐겨찾기 ---------- */
+    // v2 키: 이름만으로 식별하던 기존 저장본(자동/중복 유입 가능)은 폐기하고 새 스키마로 시작
     let favorites = [];
-    try { favorites = JSON.parse(localStorage.getItem("jongeup_fav") || "[]"); } catch (e) { favorites = []; }
-    function saveFav() { try { localStorage.setItem("jongeup_fav", JSON.stringify(favorites)); } catch (e) {} }
-    function isFav(name) { return favorites.some(f => f.name === name); }
+    try { favorites = JSON.parse(localStorage.getItem("jongeup_fav_v2") || "[]"); } catch (e) { favorites = []; }
+    try { localStorage.removeItem("jongeup_fav"); } catch (e) {}   // 구버전 자동 유입분 제거
+    let favFilter = "all";
+    function saveFav() { try { localStorage.setItem("jongeup_fav_v2", JSON.stringify(favorites)); } catch (e) {} }
+    // 고유키: 버스/지하철 노선은 (정류소·역 + 노선)까지 구분, 그 외는 종류+이름
+    function favId(o) {
+      if (!o) return "";
+      if (o.kind === "busroute" || o.kind === "subwayline") return o.kind + ":" + (o.stopName || "") + ":" + o.name;
+      return o.kind + ":" + o.name;
+    }
+    function isFav(o) {
+      const id = typeof o === "string" ? o : favId(o);
+      return favorites.some(f => favId(f) === id);
+    }
     function toggleFav(place) {
-      if (isFav(place.name)) favorites = favorites.filter(f => f.name !== place.name);
-      else favorites.push({ kind: place.kind, name: place.name, meta: place.meta, distance: place.distance, addr: place.addr, target: place.target, tags: place.tags || [] });
+      const id = favId(place);
+      if (favorites.some(f => favId(f) === id)) {
+        favorites = favorites.filter(f => favId(f) !== id);
+      } else {
+        favorites.push({
+          kind: place.kind, name: place.name, meta: place.meta || "", distance: place.distance || 0,
+          addr: place.addr || "", target: place.target || "detail", tags: place.tags || [],
+          to: place.to || "", stopName: place.stopName, citycode: place.citycode, nodeid: place.nodeid, nodeno: place.nodeno
+        });
+      }
       saveFav();
-      renderList();
-      renderFav();
-      syncDetailHeart();
+      renderList(); renderFav(); syncDetailHeart(); syncBusHeart();
+    }
+    function clearFav() {
+      favorites = []; favFilter = "all";
+      saveFav(); renderList(); renderFav(); syncDetailHeart(); syncBusHeart();
+    }
+    // 정류소/역 → 즐겨찾기 객체 (현재 모드에 따라 버스/지하철)
+    function stopFav(p) {
+      const sub = currentMode === "subway";
+      return { kind: sub ? "subway" : "bus", name: p.name, meta: p.meta || (sub ? "지하철역" : "버스정류장"),
+               distance: p.distance || 0, addr: p.addr || "", target: "transit", tags: p.tags || [],
+               citycode: p.citycode, nodeid: p.nodeid, nodeno: p.nodeno };
+    }
+    // 노선(버스 번호 / 지하철 호선)+방면 → 즐겨찾기 객체
+    function routeFav(no, to) {
+      const s = currentBus || {};
+      const sub = currentMode === "subway";
+      const label = sub ? no : no + "번";
+      const dir = to ? " (" + to + ")" : "";
+      const stopWord = sub ? "역" : "정류소";
+      return { kind: sub ? "subwayline" : "busroute", name: label + dir, to: to || "", stopName: s.name || "",
+               meta: (to ? to + " · " : "") + (s.name ? s.name + " " + stopWord : (sub ? "지하철 노선" : "버스 노선")),
+               distance: s.distance || 0, addr: s.addr || "", target: "transit",
+               citycode: s.citycode, nodeid: s.nodeid, nodeno: s.nodeno };
+    }
+    // '어디쯤 오는지' 시각화: 정류장/역(🚏)까지 차량(🚌/🚇)이 몇 정거장 전인지
+    function stopsAway(prev) {
+      const sub = currentMode === "subway";
+      const veh = sub ? "🚇" : "🚌", unit = sub ? "역" : "정거장";
+      const n = Math.max(0, Math.min(8, Number(prev) || 0));
+      if (!n) return `<span style="color:var(--pink-accent);font-weight:950">${veh} 곧 도착 (이번 ${sub ? "역" : "정류장"})</span>`;
+      return `${veh}${"·".repeat(n)}🚏 <b>${prev}</b>${unit} 전`;
+    }
+    function syncBusHeart() {
+      const h = document.getElementById("busHeart");
+      if (!h || !currentBus) return;
+      const on = isFav(stopFav(currentBus));
+      h.classList.toggle("on", on);
+      h.textContent = on ? "♥" : "♡";
+    }
+    function bindRouteHearts() {
+      document.querySelectorAll("#busRows .routeHeart").forEach(el => {
+        el.addEventListener("click", e => {
+          e.stopPropagation();
+          toggleFav(routeFav(el.dataset.no, el.dataset.to || ""));
+          const on = isFav(routeFav(el.dataset.no, el.dataset.to || ""));   // 클릭한 하트 즉시 채우기/비우기
+          el.classList.toggle("on", on);
+          el.textContent = on ? "♥" : "♡";
+        });
+      });
+    }
+    // 도착 행/위치줄을 누르면 노선 타임라인(어디쯤)으로
+    function bindLineOpen() {
+      document.querySelectorAll("#busRows .line-open").forEach(el => {
+        el.addEventListener("click", () => openLine(el.dataset.no, el.dataset.to || "", Number(el.dataset.prev) || 0, currentMode, el.dataset.up || ""));
+      });
     }
 
     /* ---------- 상세 ---------- */
-    const KIND_LABEL = { toilet: "화장실", store: "편의점", print: "프린터", subway: "지하철", bus: "버스정류장" };
+    const KIND_LABEL = { toilet: "화장실", store: "편의점", print: "프린터", subway: "지하철", bus: "버스정류장", busroute: "버스노선", subwayline: "지하철노선" };
     let currentDetail = places[0];
+    let currentBus = null;       // 현재 보고 있는 정류소/역
+    let currentMode = "bus";     // "bus" | "subway"
+    let currentArrivals = [];    // 현재 화면에 뜬 도착 목록(노선 타임라인에서 재사용)
+    // 클릭 진입 분기: 종류에 맞는 화면으로
+    function openPlace(p) {
+      if (p.kind === "busroute") return openBus(reStop(p));
+      if (p.kind === "subwayline") return openSubway(reStop(p));
+      if (p.kind === "bus") return openBus(p);
+      if (p.kind === "subway") return openSubway(p);
+      return openDetail(p);
+    }
+    function reStop(p) {
+      return { name: p.stopName || p.meta, citycode: p.citycode, nodeid: p.nodeid, nodeno: p.nodeno,
+               distance: p.distance, addr: p.addr, tags: [] };
+    }
     function openDetail(place) {
       currentDetail = place;
       document.getElementById("detailName").textContent = place.name;
@@ -1089,11 +1245,14 @@
     }
     // 버스 상세: 정류소명/번호 + 실시간 도착정보(TAGO)
     async function openBus(place) {
+      currentBus = place; currentMode = "bus";
       document.getElementById("busName").textContent = place.name || "버스정류장";
       document.getElementById("busNo").textContent =
         place.nodeno ? ("정류소 번호 " + place.nodeno) :
         place.nodeid ? ("정류소 ID " + place.nodeid) : (place.addr || "정류소 정보");
+      document.getElementById("busFootNote").textContent = "🚌 행을 누르면 노선에서 어디쯤 오는지 보여요 · 하트=그 노선만 즐겨찾기";
       show("bus");
+      syncBusHeart();
       const rows = document.getElementById("busRows");
       if (place.citycode && place.nodeid && CONFIG.DATA_GO_KR_KEY && CONFIG.PROXY) {
         rows.innerHTML = '<p class="meta">실시간 도착정보 불러오는 중…</p>';
@@ -1101,27 +1260,93 @@
           const arrs = await fetchBusArrivals(place.citycode, place.nodeid);
           if (arrs.length) renderBusArrivals(arrs);
           else rows.innerHTML = '<p class="meta">지금 도착 예정 버스가 없어요 (배차 간격·막차 등)</p>';
-        } catch (e) { console.warn("[존급] 도착정보 실패:", e); renderBuses(); }
+        } catch (e) { console.warn("[존급] 도착정보 실패:", e); renderArrivalsMock(buses); }
       } else {
-        renderBuses(); // 정보 없는 정류소(서울 등) → 샘플
+        renderArrivalsMock(buses); // 정보 없는 정류소(서울 등) → 샘플
       }
     }
-    // 실시간 도착정보 렌더 (고양이는 '도착 임박도': 곧/조금/여유)
+    // 지하철 상세: 역명/호선 + 방면·어디쯤·도착. 서울 실시간도착 API(있으면 실데이터, 없으면 샘플)
+    async function openSubway(place) {
+      currentBus = place; currentMode = "subway";
+      document.getElementById("busName").textContent = place.name || "지하철역";
+      document.getElementById("busNo").textContent = (place.tags && place.tags.length) ? place.tags.join(" · ") : "지하철역";
+      show("bus");
+      syncBusHeart();
+      const rows = document.getElementById("busRows");
+      const foot = document.getElementById("busFootNote");
+      if (CONFIG.SEOUL_SUBWAY_KEY && CONFIG.PROXY) {
+        foot.textContent = "🚇 서울 지하철 실시간 도착정보 · 행을 누르면 노선/위치 · 하트=즐겨찾기";
+        rows.innerHTML = '<p class="meta">실시간 도착정보 불러오는 중…</p>';
+        try {
+          const arrs = await fetchSubwayArrivals(place.name || "");
+          if (arrs && arrs.length) { currentBus.hereId = arrs[0].sid; renderArrivalsMock(arrs); }
+          else rows.innerHTML = '<p class="meta">이 역의 실시간 도착정보가 없어요 (서울/수도권만 제공·막차 등).</p>';
+        } catch (e) { console.warn("[존급] 지하철 도착 실패 → 샘플:", e); renderArrivalsMock(subwayMock); }
+      } else {
+        foot.textContent = "🚇 행을 누르면 어디쯤 오는지 · 하트=그 호선/방면 즐겨찾기 · 도착정보는 샘플(서울 실시간키 넣으면 실데이터)";
+        renderArrivalsMock(subwayMock);
+      }
+    }
+    // 서울 지하철 실시간 도착(OA-12764) — 역명 기준, 프록시 경유
+    const SUBWAY_ID = { "1001":"1호선","1002":"2호선","1003":"3호선","1004":"4호선","1005":"5호선","1006":"6호선","1007":"7호선","1008":"8호선","1009":"9호선","1032":"GTX-A","1061":"중앙선","1063":"경의중앙","1065":"공항철도","1067":"경춘","1075":"수인분당","1077":"신분당","1081":"경강","1092":"우이신설","1093":"서해","1094":"신림" };
+    async function fetchSubwayArrivals(stationName) {
+      if (!CONFIG.SEOUL_SUBWAY_KEY || !CONFIG.PROXY) return null;
+      const tryFetch = async (name) => {
+        if (!name) return [];
+        const url = `http://swopenapi.seoul.go.kr/api/subway/${CONFIG.SEOUL_SUBWAY_KEY}/json/realtimeStationArrival/0/12/${encodeURIComponent(name)}`;
+        const res = await fetch(CONFIG.PROXY + url);
+        const json = await res.json();
+        return (json && json.realtimeArrivalList) || [];
+      };
+      // 서울 API는 '역'을 뗀 이름만 먹음(시청·회현…). 괄호·호선 꼬리표·'역' 제거 후 base 우선 시도
+      const base = (stationName || "")
+        .replace(/\(.*?\)/g, "")                                          // (1호선) 등 제거
+        .replace(/\s*(\d+호선|경의중앙|공항철도|신분당|수인분당|경춘|우이신설|서해|경강|중앙선|GTX-?A).*$/, "")
+        .replace(/역$/, "").trim();
+      const tried = [...new Set([base, stationName, base + "역"].filter(Boolean))];
+      let rows = [];
+      for (const n of tried) { rows = await tryFetch(n); if (rows.length) break; }
+      if (!rows.length) console.info("[존급] 지하철 도착 0건 — 시도한 역명:", tried);
+      return rows.map(r => {
+        const p = parseSubwayMsg(r.arvlMsg2);
+        const sec = Number(r.barvlDt) || 0;
+        const min = sec > 0 ? Math.max(1, Math.round(sec / 60)) : p.min;
+        const cls = (min && min <= 2) || /도착|진입|출발/.test(r.arvlMsg2 || "") ? "hot" : (min && min <= 6) ? "mid" : "low";
+        const level = cls === "hot" ? "곧" : cls === "mid" ? "조금" : "여유";
+        return { no: SUBWAY_ID[r.subwayId] || "지하철", to: r.trainLineNm || r.bstatnNm || "", min: min || 1,
+                 prev: p.prev, posMsg: r.arvlMsg2 || "", cur: r.arvlMsg3 || "", dest: r.bstatnNm || "",
+                 up: String(r.updnLine === "상행" || r.updnLine === "0" ? "0" : "1"), sid: r.statnId || "", level, cls };
+      });
+    }
+    function parseSubwayMsg(msg) {
+      msg = msg || "";
+      const mm = msg.match(/(\d+)\s*분/);
+      const ps = msg.match(/(\d+)\s*번째\s*전/);
+      return { min: mm ? Number(mm[1]) : 0, prev: ps ? Number(ps[1]) : 0 };
+    }
+    // 실시간 도착정보 렌더 (버스 TAGO 실데이터)
     function renderBusArrivals(list) {
+      currentArrivals = list || [];
       document.getElementById("busRows").innerHTML = list.map(a => {
         const lv = a.min <= 2 ? ["hot", "곧도착", "🙀"] : a.min <= 6 ? ["mid", "조금", "😼"] : ["low", "여유", "😸"];
         return `
         <div class="bus-row">
           <div class="route-no">${a.no}</div>
-          <div><b><span class="dist">${a.min}분</span> 후 도착</b><div class="meta">${a.prev}정거장 전${a.tp ? " · " + a.tp : ""}</div></div>
+          <div class="bus-info line-open" data-no="${a.no}" data-to="" data-prev="${a.prev}">
+            <b><span class="dist">${a.min}분</span> 후 도착</b>
+            <div class="meta">${a.tp || "일반"}</div>
+          </div>
           <div class="level ${lv[0]}"><span class="cat">${lv[2]}</span>${lv[1]}</div>
+          <button class="heart routeHeart" data-no="${a.no}" title="이 버스 즐겨찾기">${isFav(routeFav(a.no)) ? "♥" : "♡"}</button>
+          <div class="bus-pos line-open" data-no="${a.no}" data-to="" data-prev="${a.prev}">${stopsAway(a.prev)} <span style="color:var(--brand-green);margin-left:auto">노선 보기 ›</span></div>
         </div>`;
       }).join("");
+      bindRouteHearts(); bindLineOpen();
     }
     function syncDetailHeart() {
       const h = document.getElementById("detailHeart");
-      if (!h) return;
-      const on = isFav(currentDetail.name);
+      if (!h || !currentDetail) return;
+      const on = isFav(currentDetail);
       h.classList.toggle("on", on);
       h.textContent = on ? "♥" : "♡";
     }
@@ -1133,6 +1358,7 @@
       if (screen === "map" && kmap.ready) kmap.relayout();
       if (screen === "map" && !mapStarted && CONFIG.KAKAO_JS_KEY) requestLocation(); // 지도 진입 시 실제 지도 자동 로드
       if (screen === "fav") renderFav();
+      if (screen === "search") { renderRecent(); const sb = document.getElementById("searchBox"); if (sb) setTimeout(() => sb.focus(), 50); }
     }
     function bindNavigation(root = document) {
       root.querySelectorAll("[data-goto]").forEach(el => {
@@ -1178,10 +1404,11 @@
       document.getElementById("cardDistance").textContent = first.distance + "m";
       document.getElementById("cardMeta").textContent = first.meta;
       const routeBtn = document.getElementById("cardRoute");
-      routeBtn.dataset.goto = first.kind === "bus" ? "bus" : "route";
+      routeBtn.dataset.goto = first.kind === "bus" ? "bus" : "route";   // 버스=도착화면, 그외=길안내(지하철도 길안내 유지)
       routeBtn.onclick = first.kind === "bus" ? (() => openBus(first)) : null;
       const detailBtn = document.getElementById("cardDetail");
-      detailBtn.onclick = () => { if (first.kind === "bus") openBus(first); else openDetail(first); };
+      detailBtn.onclick = () => openPlace(first);                        // 상세: 지하철·버스=도착정보, 그외=상세
+      detailBtn.textContent = (first.kind === "bus" || first.kind === "subway") ? "도착정보" : "상세";
     }
 
     // 장소 리스트(하트 포함)를 컨테이너에 렌더 — 리스트/즐겨찾기 공용
@@ -1195,16 +1422,13 @@
           <div class="li-main" style="cursor:pointer">
             <div class="item-name">${p.name} <span class="dist">${p.distance}m</span></div>
             <div class="meta">${p.meta}</div>
-            <div class="item-tags">${(p.tags || []).map(t => `<span class="pill">${t}</span>`).join("")}${p.kind === "bus" ? '<span class="crowd">혼잡</span>' : ""}</div>
+            <div class="item-tags">${(p.tags || []).map(t => `<span class="pill">${t}</span>`).join("")}</div>
           </div>
-          <button class="heart ${isFav(p.name) ? "on" : ""}" title="즐겨찾기">${isFav(p.name) ? "♥" : "♡"}</button>
+          <button class="heart ${isFav(p) ? "on" : ""}" title="즐겨찾기">${isFav(p) ? "♥" : "♡"}</button>
         </div>
       `).join("");
       c.querySelectorAll(".li-main").forEach((el, i) => {
-        el.addEventListener("click", () => {
-          const p = data[i];
-          if (p.target === "bus") openBus(p); else openDetail(p);
-        });
+        el.addEventListener("click", () => openPlace(data[i]));   // 버스/지하철=도착·노선 화면, 그외=상세
       });
       c.querySelectorAll(".heart").forEach((el, i) => {
         el.addEventListener("click", e => { e.stopPropagation(); toggleFav(data[i]); });
@@ -1221,20 +1445,134 @@
     function renderFav() {
       const sub = document.getElementById("favSub");
       if (sub) sub.textContent = favorites.length ? `저장한 장소 ${favorites.length}곳` : "하트를 누른 장소가 여기 모여요";
-      renderPlaceList("favList", favorites.slice().sort((a, b) => a.distance - b.distance),
-        `<div class="fav-empty"><span class="big">🤍</span>아직 즐겨찾기가 없어요.<br>장소 오른쪽 하트(♡)를 눌러 저장해 보세요.</div>`);
+      if (favFilter !== "all" && !favorites.some(f => f.kind === favFilter)) favFilter = "all"; // 빈 카테고리면 전체로
+      renderFavChips();
+      const list = favorites.filter(f => favFilter === "all" || f.kind === favFilter)
+                            .slice().sort((a, b) => (a.distance || 0) - (b.distance || 0));
+      renderPlaceList("favList", list,
+        `<div class="fav-empty"><span class="big">🤍</span>아직 즐겨찾기가 없어요.<br>장소·정류소·버스의 하트(♡)를 눌러 저장해 보세요.</div>`);
+    }
+    // 즐겨찾기에 실제 들어있는 종류만 카테고리 칩으로 노출
+    function renderFavChips() {
+      const box = document.getElementById("favChips");
+      if (!box) return;
+      if (!favorites.length) { box.innerHTML = ""; return; }
+      const order = ["toilet", "store", "print", "subway", "subwayline", "bus", "busroute"];
+      const kinds = [...new Set(favorites.map(f => f.kind))].sort((a, b) => order.indexOf(a) - order.indexOf(b));
+      const chip = (key, label, cnt, active) =>
+        `<button class="chip ${active ? "active" : ""}" data-fav="${key}"><span>${label} ${cnt}</span></button>`;
+      let html = chip("all", "전체", favorites.length, favFilter === "all");
+      kinds.forEach(k => html += chip(k, KIND_LABEL[k] || k, favorites.filter(f => f.kind === k).length, favFilter === k));
+      box.innerHTML = html;
+      box.querySelectorAll("[data-fav]").forEach(b =>
+        b.addEventListener("click", () => { favFilter = b.dataset.fav; renderFav(); }));
     }
 
     // 혼잡도 고양이 캐릭터 (여유=느긋, 보통=새침, 혼잡=놀란)
     const CAT = { low: "😸", mid: "😼", hot: "🙀" };
-    function renderBuses() {
-      document.getElementById("busRows").innerHTML = buses.map(bus => `
+    // 버스/지하철 도착(샘플) 공용 렌더 — 방면 + 도착 + (아래줄)어디쯤
+    function renderArrivalsMock(list) {
+      currentArrivals = list || [];
+      const sub = currentMode === "subway";
+      const veh = sub ? "🚇" : "🚌";
+      document.getElementById("busRows").innerHTML = list.map(r => {
+        // 위치줄: 실데이터 메시지(posMsg) 우선, 없으면 정거장수 시각화
+        const pos = r.posMsg ? `${veh} ${r.posMsg}` : stopsAway(r.prev);
+        const dir = r.to ? (/(방면|행)$/.test(r.to) ? r.to : r.to + " 방면") : "방면 정보 없음";  // 지하철 trainLineNm은 이미 '…방면'
+        return `
         <div class="bus-row">
-          <div class="route-no">${bus.no}</div>
-          <div><b>→ ${bus.to}</b><div class="meta"><span class="dist">${bus.min}분</span> 후 도착</div></div>
-          <div class="level ${bus.cls}"><span class="cat">${CAT[bus.cls] || "😺"}</span>${bus.level}</div>
-        </div>
-      `).join("");
+          <div class="route-no">${r.no}</div>
+          <div class="bus-info line-open" data-no="${r.no}" data-to="${r.to || ""}" data-prev="${r.prev || 0}" data-up="${r.up || ""}">
+            <b>${dir}</b>
+            <div class="meta"><span class="dist">${r.min}분</span> 후 도착</div>
+          </div>
+          <div class="level ${r.cls}"><span class="cat">${CAT[r.cls] || "😺"}</span>${r.level}</div>
+          <button class="heart routeHeart" data-no="${r.no}" data-to="${r.to || ""}" title="${sub ? "이 호선/방면" : "이 버스"} 즐겨찾기">${isFav(routeFav(r.no, r.to || "")) ? "♥" : "♡"}</button>
+          <div class="bus-pos line-open" data-no="${r.no}" data-to="${r.to || ""}" data-prev="${r.prev || 0}" data-up="${r.up || ""}">${pos} <span style="color:var(--brand-green);margin-left:auto">노선 보기 ›</span></div>
+        </div>`;
+      }).join("");
+      bindRouteHearts(); bindLineOpen();
+    }
+    function renderLineStops(stops) {
+      document.getElementById("lineStops").innerHTML = stops.map(s => `
+        <div class="line-stop ${s.cls || ""}">
+          <div class="line-node">${s.icon ? `<span class="line-bus">${s.icon}</span>` : '<span class="line-dot"></span>'}</div>
+          <div class="line-label ${s.faint ? "faint" : ""}">${s.label}${s.tag ? ` <small>${s.tag}</small>` : ""}</div>
+        </div>`).join("");
+      show("busline");
+    }
+    // 서울 실시간 열차위치 — 노선 전체의 모든 운행 열차(역명·상하행·종착·상태)
+    async function fetchLinePositions(lineName) {
+      if (!CONFIG.SEOUL_SUBWAY_KEY || !CONFIG.PROXY) return [];
+      try {
+        const url = `http://swopenapi.seoul.go.kr/api/subway/${CONFIG.SEOUL_SUBWAY_KEY}/json/realtimePosition/0/300/${encodeURIComponent(lineName)}`;
+        const res = await fetch(CONFIG.PROXY + url);
+        const json = await res.json();
+        return (json && json.realtimePositionList) || [];
+      } catch (e) { console.warn("[존급] 열차위치 실패:", e); return []; }
+    }
+    const TRAIN_STT = { "0": "진입", "1": "도착", "2": "출발", "3": "전역출발" };
+    const seq = id => Number(String(id || "").slice(-6)) || 0;   // statnId 끝 6자리 = 노선 내 역 순서
+    const cleanNm = nm => (nm || "").replace(/(종착|행)$/, "").trim();
+
+    // 노선 타임라인: 실시간이면 노선 전체 역 + 모든 열차 위치, 아니면 샘플
+    async function openLine(no, to, prev, mode, up) {
+      const sub = mode === "subway";
+      const veh = sub ? "🚇" : "🚌", stopW = sub ? "역" : "정류장", unit = sub ? "역" : "정거장";
+      document.getElementById("lineTitle").textContent = sub ? no : no + "번";
+
+      // ① 실데이터(지하철): realtimePosition 으로 노선 전체를 실제 역명으로
+      if (sub && CONFIG.SEOUL_SUBWAY_KEY && CONFIG.PROXY) {
+        document.getElementById("lineSub").textContent = "실시간 열차 위치 불러오는 중…";
+        document.getElementById("lineStops").innerHTML = "";
+        show("busline");
+        const all = await fetchLinePositions(no);
+        const trains = all.filter(t => up === "" || String(t.updnLine) === String(up));
+        if (trains.length) {
+          // 역 축: 열차들이 위치한 역들을 statnId 순서로 (노선 따라 정렬). 승차역도 끼워넣음
+          const byId = new Map();
+          trains.forEach(t => {
+            const k = t.statnId;
+            if (!byId.has(k)) byId.set(k, { id: k, nm: cleanNm(t.statnNm), trains: [] });
+            byId.get(k).trains.push(t);
+          });
+          const hereId = currentBus && currentBus.hereId;
+          if (hereId && !byId.has(hereId)) byId.set(hereId, { id: hereId, nm: (currentBus.name || "").replace(/역$/, ""), trains: [] });
+          const axis = [...byId.values()].sort((a, b) => seq(a.id) - seq(b.id));
+          const dest = cleanNm(trains[0].statnTnm) || (to || "").replace(/행.*$/, "");
+          document.getElementById("lineSub").textContent = `${to || dest + " 방면"} · 실시간 ${trains.length}대 운행 중`;
+          renderLineStops(axis.map(s => {
+            const here = s.id === hereId;
+            const t = s.trains[0];
+            return {
+              icon: t ? veh : null,
+              cls: here ? "here" : "",
+              label: s.nm + (here ? " (승차역·여기)" : ""),
+              tag: t ? `열차 ${TRAIN_STT[t.trainSttus] || "운행"}${s.trains.length > 1 ? ` · ${s.trains.length}대` : ""}` : ""
+            };
+          }));
+          return;
+        }
+        document.getElementById("lineSub").textContent = "실시간 운행 열차가 없어요 (막차·운행종료 등)";
+        return;
+      }
+
+      // ② 샘플(버스/키없음): 전체 12칸 노선 + 차량 위치 시각화
+      document.getElementById("lineSub").textContent =
+        (to ? to + " 방면 · " : "") + (prev ? `${veh} ${prev}${unit} 전` : `${veh} 곧 도착`);
+      const TOTAL = 12, HERE = 8;
+      const n = Math.max(0, Math.min(HERE, Number(prev) || 0));
+      const t1 = HERE - n, t2 = t1 - 4;
+      const stops = [];
+      for (let i = 0; i < TOTAL; i++) {
+        let s = { label: stopW, faint: true };
+        if (i === HERE) s = { label: `승차 ${stopW} (여기)`, cls: "here" };
+        else if (i === TOTAL - 1) s = { label: (to || "종점") + " 방면", cls: "dest", icon: "🏁" };
+        if (i === t1) { s.icon = veh; s.faint = false; s.tag = prev ? `${prev}${unit} 전 · 내가 탈 ${sub ? "열차" : "버스"}` : "곧 도착"; }
+        else if (i === t2 && t2 >= 0) { s.icon = veh; s.faint = false; s.tag = "다음 차량"; }
+        stops.push(s);
+      }
+      renderLineStops(stops);
     }
 
     function renderAll() {
@@ -1243,7 +1581,7 @@
       renderMap();
       renderList();
       renderFav();
-      renderBuses();
+      renderArrivalsMock(buses);
     }
 
     // 필터 칩: 마우스 휠/드래그로 좌우 스크롤 (데스크톱에서도 이동되게)
@@ -1332,7 +1670,7 @@
     }
 
     // 카테고리별 색 (CSS 변수와 동일)
-    const KIND_COLOR = { toilet: "#2E86DE", store: "#16A34A", print: "#8B5CF6", subway: "#F97316", bus: "#0EA5A4" };
+    const KIND_COLOR = { toilet: "#2E86DE", store: "#16A34A", print: "#8B5CF6", subway: "#F97316", bus: "#0EA5A4", busroute: "#0EA5A4", subwayline: "#F97316" };
     function pinHtml(kind) {
       const bg = KIND_COLOR[kind] || "#06530B";
       return `<div style="width:30px;height:30px;border:2px solid #fff;border-radius:15px 15px 15px 3px;transform:rotate(-45deg);background:${bg};display:grid;place-items:center;box-shadow:0 6px 14px rgba(0,0,0,.2)"><span style="transform:rotate(45deg);color:#fff;display:grid;place-items:center">${iconSvg(kind, 16)}</span></div>`;
@@ -1359,7 +1697,17 @@
       const opt = { location: center, radius, sort: window.kakao.maps.services.SortBy.DISTANCE };
       // kind -> 카카오 검색 (카테고리코드 또는 키워드)
       const queries = {
-        toilet: { kws: ["화장실", "공중화장실", "개방화장실"] },   // 개방형 건물·공중 화장실까지 폭넓게
+        // 화장실 = 전용 화장실 + '누구나 쓸 수 있는 화장실을 품은 공공시설'(공원/지하철역/관공서/도서관 등). tag로 출처 표시
+        toilet: { kws: [
+          "화장실", "공중화장실", "개방화장실",
+          { kw: "공원", tag: "공원 화장실" },
+          { cat: "SW8", tag: "역 화장실" },               // 지하철역(전 호선 화장실 개방)
+          { kw: "주민센터", tag: "공공시설" },
+          { kw: "행정복지센터", tag: "공공시설" },
+          { kw: "도서관", tag: "공공시설" },
+          { kw: "시청", tag: "공공시설" },
+          { kw: "구청", tag: "공공시설" }
+        ] },
         store:  { cat: "CS2" },
         // 고객이 직접 출력 가능한 곳(무인/셀프). 넓은 토큰 '프린트'로 프린트히어로24·프린트올데이·무인프린트24 등 브랜드까지 포착,
         // '프린클라피'처럼 토큰 다른 브랜드는 개별 추가. 인쇄업체·사진/포토·3D·티셔츠 등 비문서 출력은 exclude로 제외
@@ -1380,7 +1728,11 @@
         if (kind === "bus" && CONFIG.DATA_GO_KR_KEY && CONFIG.PROXY) { tasks.push({ kind, bus: true }); return; }
         const q = queries[kind];
         if (q.cat) tasks.push({ kind, cat: q.cat });
-        else (q.kws || [q.kw]).forEach(kw => tasks.push({ kind, kw, include: q.include, exclude: q.exclude }));
+        else (q.kws || [q.kw]).forEach(item => {
+          if (typeof item === "string") tasks.push({ kind, kw: item, include: q.include, exclude: q.exclude });
+          else if (item.cat) tasks.push({ kind, cat: item.cat, tag: item.tag });          // 카테고리 기반(예: 지하철역)
+          else tasks.push({ kind, kw: item.kw, tag: item.tag, include: q.include, exclude: q.exclude });
+        });
         // 화장실: 카카오 키워드 + 공공 개방화장실 표준데이터(지오코딩) 를 동시 레이어로
         if (kind === "toilet" && CONFIG.DATA_GO_KR_KEY && CONFIG.PROXY && CONFIG.TOILET_DATA_URL) {
           tasks.push({ kind, openToilet: true });
@@ -1402,7 +1754,7 @@
         const elPin = document.createElement("div");
         elPin.innerHTML = pinHtml(place.kind);
         elPin.style.cursor = "pointer";
-        elPin.addEventListener("click", () => { if (place.kind === "bus") openBus(place); else openDetail(place); });
+        elPin.addEventListener("click", () => openPlace(place));
         kmap.overlays.push(new window.kakao.maps.CustomOverlay({
           map: kmap.map, position: new window.kakao.maps.LatLng(lat, lng), content: elPin, yAnchor: 1, clickable: true
         }));
@@ -1442,10 +1794,17 @@
               const hay = (d.category_name || "") + " " + d.place_name;
               if (t.include && !t.include.test(hay)) return;
               if (t.exclude && t.exclude.test(hay)) return;
+              const tags = [];
+              if (t.tag) tags.push(t.tag);                                  // 출처(공원/역/공공시설 화장실)
+              else if (t.kind === "subway") {                               // 지하철: category_name에서 호선 추출 (예: "…>수도권1호선")
+                const m = (d.category_name || "").match(/[가-힣A-Za-z0-9]*(\d+호선|[가-힣]+선)/);
+                if (m) tags.push(m[0].replace(/^수도권/, ""));
+              }
+              else if (d.category_group_name) tags.push(d.category_group_name);
               addPin({
                 kind: t.kind, name: d.place_name, distance: Number(d.distance) || 0,
                 meta: d.road_address_name || d.address_name || "",
-                tags: d.category_group_name ? [d.category_group_name] : [],
+                tags,
                 target: t.kind === "bus" ? "bus" : "detail",
                 addr: d.road_address_name || d.address_name || "", phone: d.phone || ""
               }, d.y, d.x);
@@ -1506,9 +1865,10 @@
         buses = rows.slice(0, 6).map(r => {
           const [level, cls] = crowd[r.congestion1] || ["보통","mid"];
           const sec = Number(r.traTime1) || 0;
-          return { no: r.rtNm, to: r.adirection || "", min: Math.max(1, Math.round(sec/60)), level, cls };
+          return { no: r.rtNm, to: r.adirection || "", min: Math.max(1, Math.round(sec/60)), prev: Number(r.sectOrd1) || 0, level, cls };
         });
-        renderBuses();
+        currentMode = "bus";
+        renderArrivalsMock(buses);
       } catch (e) { console.warn("[존급] 버스 API 실패 → mock:", e); }
     }
 
@@ -1605,33 +1965,61 @@
         `<span class="status-dot ${on ? "on" : ""}"></span>${on ? "카카오맵 연동됨" : "mock 모드"}`;
     }
 
-    /* ---------- 검색 (카카오 키워드) ---------- */
+    /* ---------- 검색 (카카오 키워드) + 최근 검색 ---------- */
+    let recent = [];
+    try { recent = JSON.parse(localStorage.getItem("jongeup_recent") || "[]"); } catch (e) { recent = []; }
+    function saveRecent() { try { localStorage.setItem("jongeup_recent", JSON.stringify(recent)); } catch (e) {} }
+    function addRecent(term) {
+      term = (term || "").trim(); if (!term) return;
+      recent = [term, ...recent.filter(t => t !== term)].slice(0, 8);   // 중복 제거 + 최신순 + 최대 8개
+      saveRecent(); renderRecent();
+    }
+    function renderRecent() {
+      const c = document.getElementById("recentList");
+      if (!c) return;
+      if (!recent.length) { c.innerHTML = '<span class="meta">최근 검색 내역이 없어요.</span>'; return; }
+      c.innerHTML = recent.map((t, i) => `<span class="pill recent-pill" data-i="${i}">${t} <b class="rm" data-rm="${i}" style="cursor:pointer;margin-left:2px">×</b></span>`).join("");
+      c.querySelectorAll(".recent-pill").forEach(el => el.addEventListener("click", e => {
+        if (e.target.classList.contains("rm")) return;
+        const t = recent[Number(el.dataset.i)];
+        document.getElementById("searchBox").value = t;
+        runSearch(t);
+      }));
+      c.querySelectorAll(".rm").forEach(b => b.addEventListener("click", e => {
+        e.stopPropagation(); recent.splice(Number(b.dataset.rm), 1); saveRecent(); renderRecent();
+      }));
+    }
+    async function runSearch(term) {
+      term = (term || "").trim();
+      const c = document.getElementById("searchResults");
+      if (!term) { c.innerHTML = '<p class="meta">검색어를 입력하세요.</p>'; return; }
+      try { await loadKakaoSdk(); } catch (e) { c.innerHTML = '<p class="meta">검색에는 카카오맵 키가 필요해요(현재 미연동).</p>'; return; }
+      addRecent(term);
+      c.innerHTML = '<p class="meta">검색 중…</p>';
+      const ps = new window.kakao.maps.services.Places();
+      ps.keywordSearch(term, (data, status) => {
+        if (status !== window.kakao.maps.services.Status.OK || !data.length) {
+          c.innerHTML = '<p class="meta">검색 결과가 없어요.</p>'; return;
+        }
+        const list = data.slice(0, 10);
+        c.innerHTML = list.map(d => `
+          <div class="list-item" style="cursor:pointer">
+            <div class="badge search">${iconSvg("location")}</div>
+            <div class="li-main"><div class="item-name">${d.place_name}</div><div class="meta">${d.road_address_name || d.address_name || ""}</div></div><b>›</b>
+          </div>`).join("");
+        c.querySelectorAll(".list-item").forEach((el, i) => el.addEventListener("click", () => {
+          const d = list[i], center = { lat: Number(d.y), lng: Number(d.x) };
+          if (!moveMapTo(center)) startMap(center);   // 지도 아직이면 그 위치로 초기화
+          show("map");
+        }));
+      });
+    }
     function bindSearch() {
       const box = document.getElementById("searchBox");
-      const clear = document.getElementById("searchClear");
-      clear.addEventListener("click", () => { box.value = ""; box.focus(); });
-      box.addEventListener("keydown", e => {
-        if (e.key !== "Enter" || !kmap.ready || !box.value.trim()) return;
-        const ps = new window.kakao.maps.services.Places();
-        ps.keywordSearch(box.value.trim(), (data, status) => {
-          if (status !== window.kakao.maps.services.Status.OK) return;
-          const list = data.slice(0, 8);
-          const c = document.getElementById("searchResults");
-          c.innerHTML = list.map(d => `
-            <div class="list-item" style="cursor:pointer">
-              <div class="badge search">${iconSvg("location")}</div>
-              <div><div class="item-name">${d.place_name}</div><div class="meta">${d.road_address_name || d.address_name || ""}</div></div><b>›</b>
-            </div>`).join("");
-          // 결과 클릭 → 그 위치로 지도 이동 + 주변 재검색
-          c.querySelectorAll(".list-item").forEach((el, i) => {
-            el.addEventListener("click", () => {
-              const d = list[i];
-              moveMapTo({ lat: Number(d.y), lng: Number(d.x) });
-              show("map");
-            });
-          });
-        });
-      });
+      document.getElementById("searchClear").addEventListener("click", () => { box.value = ""; box.focus(); });
+      document.getElementById("recentClear").addEventListener("click", () => { recent = []; saveRecent(); renderRecent(); });
+      box.addEventListener("keydown", e => { if (e.key === "Enter") runSearch(box.value); });
+      renderRecent();
     }
 
     // 정적 HTML 안의 아이콘 자리(지도 핀 / data-ic 뱃지·핀) 채우기
@@ -1646,8 +2034,10 @@
         pin.style.cursor = "pointer";
         pin.addEventListener("click", () => {
           const kind = pin.dataset.kind;
-          if (kind === "bus") return openBus(places.find(p => p.kind === "bus") || { name: "버스정류장" });
-          openDetail(places.find(p => p.kind === kind) || places[0]);
+          const p = places.find(x => x.kind === kind);
+          if (kind === "bus") return openBus(p || { kind: "bus", name: "버스정류장" });
+          if (kind === "subway") return openSubway(p || { kind: "subway", name: "지하철역" });
+          openDetail(p || places[0]);
         });
       });
     }
@@ -1660,11 +2050,16 @@
     bindMockPins();
     setApiStatus(false);
     document.getElementById("detailHeart").addEventListener("click", () => toggleFav(currentDetail));
+    document.getElementById("busHeart").addEventListener("click", () => { if (currentBus) toggleFav(stopFav(currentBus)); });
+    document.getElementById("lineBack").addEventListener("click", () => show("bus"));
+    document.getElementById("busRoute").addEventListener("click", () => show("route"));
+    document.getElementById("favClear").addEventListener("click", clearFav);
+    enableDragScroll(document.getElementById("favChips"));
     document.querySelectorAll("[data-locate]:not([data-goto])").forEach(b => b.addEventListener("click", requestLocation));
     enableDragScroll(document.getElementById("filterChips"));
     enableDragScroll(document.getElementById("listChips"));
     // URL 해시로 특정 화면 바로 보기 (#map, #list, #detail, #route, #search, #bus, #sos)
-    const screens = ["splash","onboard","map","list","fav","detail","route","search","bus","sos"];
+    const screens = ["splash","onboard","map","list","fav","detail","route","search","bus","busline","sos"];
     const fromHash = location.hash.replace("#", "");
     if (screens.includes(fromHash)) {
       show(fromHash);
