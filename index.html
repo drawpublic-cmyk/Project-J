@@ -487,6 +487,7 @@
       font-weight: 850;
     }
     .crowd { color: var(--brand-green); font-weight: 950; font-size: 12px; }
+    .exp { display: inline-block; background: var(--pink-accent); color: #fff; font-size: 10px; font-weight: 950; padding: 1px 6px; border-radius: 6px; vertical-align: middle; }
 
     /* ---------- 상세 ---------- */
     .detail-hero {
@@ -1322,13 +1323,23 @@
         const min = sec > 0 ? Math.max(1, Math.round(sec / 60)) : p.min;   // 0 = 분 정보 없음(메시지로 표기)
         const arriving = /도착|진입/.test(msg);
         const sk = min > 0 ? min : arriving ? 0 : /전역|출발/.test(msg) ? 0.5 : (p.prev || 40);  // 도착 임박순 정렬키
-        const cls = (min && min <= 2) || arriving ? "hot" : (min && min <= 6) ? "mid" : "low";
+        const cls = min && min <= 3 ? "hot" : min && min <= 7 ? "mid" : "low";   // 혼잡도 데이터는 없음 → 도착시간 기반 placeholder
         const level = cls === "hot" ? "곧" : cls === "mid" ? "조금" : "여유";
-        return { no: SUBWAY_ID[r.subwayId] || "지하철", to: r.trainLineNm || r.bstatnNm || "", min,
+        const tl = r.trainLineNm || r.bstatnNm || "";
+        const express = /급행|특급/.test(tl) || /급행|특급/.test(r.btrainSttus || "");
+        const to = tl.replace(/\s*\((급행|특급|ITX[^)]*)\)\s*/g, "").trim();   // 방면에서 (급행) 떼고 별도 뱃지로
+        // 방향 정규화: 상행/내선/0 → "0", 하행/외선/1 → "1" (2호선은 내선/외선으로 와서 별도 처리 필요)
+        const u = r.updnLine;
+        const up = (u === "상행" || u === "내선" || u === "0") ? "0" : "1";
+        return { no: SUBWAY_ID[r.subwayId] || "지하철", to, express, min,
                  prev: p.prev, posMsg: msg, cur: r.arvlMsg3 || "", dest: r.bstatnNm || "", sk,
-                 up: String(r.updnLine === "상행" || r.updnLine === "0" ? "0" : "1"), sid: r.statnId || "", level, cls };
+                 up, sid: r.statnId || "", level, cls };
       });
-      return mapped.sort((a, b) => a.sk - b.sk);   // 곧 도착이 위로
+      // 같은 노선·방면은 하나로 통일(가장 가까운 열차만). 단 급행/일반은 다른 열차라 따로 유지
+      const sorted = mapped.sort((a, b) => a.sk - b.sk);
+      const seen = new Set(), uniq = [];
+      for (const r of sorted) { const k = r.no + "|" + r.to + "|" + (r.express ? "E" : ""); if (!seen.has(k)) { seen.add(k); uniq.push(r); } }
+      return uniq;
     }
     function parseSubwayMsg(msg) {
       msg = msg || "";
@@ -1340,7 +1351,7 @@
     function renderBusArrivals(list) {
       currentArrivals = list || [];
       document.getElementById("busRows").innerHTML = list.map(a => {
-        const lv = a.min <= 2 ? ["hot", "곧도착", "🙀"] : a.min <= 6 ? ["mid", "조금", "😼"] : ["low", "여유", "😸"];
+        const lv = a.min <= 2 ? ["hot"] : a.min <= 6 ? ["mid"] : ["low"];
         return `
         <div class="bus-row">
           <div class="route-no">${a.no}</div>
@@ -1348,7 +1359,7 @@
             <b><span class="dist">${a.min}분</span> 후 도착</b>
             <div class="meta">${a.tp || "일반"}</div>
           </div>
-          <div class="level ${lv[0]}"><span class="cat">${lv[2]}</span>${lv[1]}</div>
+          <div class="level ${lv[0]}">${LEVEL_TXT[lv[0]]}</div>
           <button class="heart routeHeart" data-no="${a.no}" title="이 버스 즐겨찾기">${isFav(routeFav(a.no)) ? "♥" : "♡"}</button>
           <div class="bus-pos line-open" data-no="${a.no}" data-to="" data-prev="${a.prev}">${stopsAway(a.prev)} <span style="color:var(--brand-green);margin-left:auto">노선 보기 ›</span></div>
         </div>`;
@@ -1481,14 +1492,15 @@
     }
 
     // 혼잡도 고양이 캐릭터 (여유=느긋, 보통=새침, 혼잡=놀란)
-    const CAT = { low: "😸", mid: "😼", hot: "🙀" };
+    const LEVEL_TXT = { low: "여유", mid: "보통", hot: "혼잡" };   // 혼잡도 텍스트(고양이 제거, 통일)
     // 버스/지하철 도착(샘플) 공용 렌더 — 방면 + 도착 + (아래줄)어디쯤
     function renderArrivalsMock(list) {
       currentArrivals = list || [];
       const sub = currentMode === "subway";
       const veh = sub ? "🚇" : "🚌";
       document.getElementById("busRows").innerHTML = list.map(r => {
-        const dir = r.to ? (/(방면|행)$/.test(r.to) ? r.to : r.to + " 방면") : "방면 정보 없음";  // 지하철 trainLineNm은 이미 '…방면'
+        const dirName = r.to ? (/(방면|행)$/.test(r.to) ? r.to : r.to + " 방면") : "방면 정보 없음";  // 지하철 trainLineNm은 이미 '…방면'
+        const dir = (r.express ? '<span class="exp">급행</span> ' : "") + dirName;
         // 도착줄: 실제 '분'이 있을 때만 'N분 후', 없으면 도착 메시지(전역 출발 등) 그대로
         const eta = r.min ? `<span class="dist">${r.min}분</span> 후 도착` : (r.posMsg || "곧 도착");
         // 위치줄: 지하철=열차 현재 역(arvlMsg3), 버스=정거장수 시각화
@@ -1500,7 +1512,7 @@
             <b>${dir}</b>
             <div class="meta">${eta}</div>
           </div>
-          <div class="level ${r.cls}"><span class="cat">${CAT[r.cls] || "😺"}</span>${r.level}</div>
+          <div class="level ${r.cls}">${LEVEL_TXT[r.cls] || "보통"}</div>
           <button class="heart routeHeart" data-no="${r.no}" data-to="${r.to || ""}" title="${sub ? "이 호선/방면" : "이 버스"} 즐겨찾기">${isFav(routeFav(r.no, r.to || "")) ? "♥" : "♡"}</button>
           <div class="bus-pos line-open" data-no="${r.no}" data-to="${r.to || ""}" data-prev="${r.prev || 0}" data-up="${r.up || ""}">${pos} <span style="color:var(--brand-green);margin-left:auto">노선 보기 ›</span></div>
         </div>`;
@@ -1605,13 +1617,22 @@
           document.getElementById("lineFootNote").textContent = "🚇 서울 지하철 실시간 — 역 순서·열차 위치 모두 실데이터입니다. (●=역, 🚇=현재 열차)";
           if (!stations.some(s => normNm(s.nm) === hereName))
             console.warn("[존급] 승차역 매칭 실패 — currentBus.name:", currentBus && currentBus.name, "→ key:", hereName, "| 역 예시:", stations.slice(0, 5).map(s => s.nm));
-          renderLineStops(stations.map(s => {
+          // 진행 방향 정렬: 방면(=바로 다음 역)이 승차역 아래로 오게. (예: '남영방면'이면 남영이 아래)
+          const axis = stations.slice();
+          const dirStn = normNm(((to || "").match(/([가-힣A-Za-z0-9()]+?)\s*방면/) || [])[1] || "");          // 다음역(방면) 우선
+          const termStn = normNm(((to || "").match(/([가-힣A-Za-z0-9]+)행/) || [])[1] || (trains[0] && trains[0].statnTnm) || "");  // 없으면 종착
+          const hi = axis.findIndex(s => normNm(s.nm) === hereName);
+          let pivot = axis.findIndex(s => normNm(s.nm) === dirStn);
+          if (pivot < 0) pivot = axis.findIndex(s => normNm(s.nm) === termStn);
+          if (pivot >= 0 && hi >= 0 && pivot < hi) axis.reverse();   // 방면/종착이 위에 있으면 뒤집어 아래로
+          renderLineStops(axis.map(s => {
             const k = normNm(s.nm), list = tmap[k] || [], here = k === hereName;
+            const exp = list.some(t => String(t.directAt) === "1" || /급행|특급/.test(t.btrainSttus || ""));   // 급행 열차
             return {
               icon: list.length ? veh : null,                 // 열차 없으면 점(●), 있으면 🚇
               cls: here ? "here" : "",
               label: s.nm + (here ? " (승차역·여기)" : ""),
-              tag: list.length ? `열차 ${TRAIN_STT[list[0].trainSttus] || "운행"}${list.length > 1 ? ` · ${list.length}대` : ""}` : ""
+              tag: list.length ? `${exp ? '<span class="exp">급행</span> ' : ""}열차 ${TRAIN_STT[list[0].trainSttus] || "운행"}${list.length > 1 ? ` · ${list.length}대` : ""}` : ""
             };
           }), lineColor(no));
           return;
