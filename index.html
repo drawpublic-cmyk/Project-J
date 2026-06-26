@@ -626,7 +626,7 @@
       background: var(--lavender);
       border-bottom: 1px solid var(--line);
     }
-    .bus-list { padding: 16px 18px 90px; }
+    .bus-list { padding: 16px 18px 96px; height: calc(100% - 132px); overflow-y: auto; }  /* 도착 목록 스크롤 */
     .bus-row {
       display: grid;
       grid-template-columns: 54px 1fr auto auto;
@@ -650,15 +650,19 @@
     .bus-pos b { color: var(--charcoal); }
 
     /* ---------- 노선 타임라인 (버스/지하철이 어디쯤) ---------- */
-    .line-head { padding: 14px 18px 16px; background: var(--lavender); border-bottom: 1px solid var(--line); }
-    .line-wrap { padding: 18px 22px 90px; overflow-y: auto; height: calc(100% - 132px); }
+    .line-head { padding: 14px 18px 16px; height: 124px; background: var(--lavender); border-bottom: 1px solid var(--line); }
+    .line-wrap { padding: 18px 22px 96px; overflow-y: auto; height: calc(100% - 124px); }  /* 노선 타임라인 스크롤 */
     .line-stop { display: grid; grid-template-columns: 26px 1fr; gap: 12px; align-items: center; }
     .line-node { position: relative; height: 46px; display: flex; align-items: center; justify-content: center; }
-    .line-node::before { content: ""; position: absolute; top: 0; bottom: 0; width: 3px; background: var(--line); }
+    .line-node::before { content: ""; position: absolute; top: 0; bottom: 0; width: 4px; background: var(--lc, var(--line)); }
     .line-stop:first-child .line-node::before { top: 50%; }
     .line-stop:last-child .line-node::before { bottom: 50%; }
-    .line-dot { width: 13px; height: 13px; border-radius: 50%; background: #cdd2cf; border: 2px solid #fff; z-index: 1; }
-    .line-stop.here .line-dot { background: var(--brand-green); width: 18px; height: 18px; }
+    .line-dot { width: 12px; height: 12px; border-radius: 50%; background: var(--lc, #cdd2cf); border: 2px solid #fff; z-index: 1; }
+    .line-stop.here .line-dot { background: #fff; width: 18px; height: 18px; border: 4px solid var(--lc, var(--brand-green)); }
+    /* 승차역 강조: 열차(🚇)가 있어도 보이도록 노드에 링 + 행 배경 */
+    .line-stop.here .line-node::after { content: ""; position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 30px; height: 30px; border-radius: 50%; border: 2.5px solid var(--lc, var(--brand-green)); z-index: 3; }
+    .line-stop.here { background: rgba(0,0,0,.05); border-radius: 12px; }
+    .line-stop.here .line-label { color: var(--lc, var(--brand-green)) !important; font-weight: 950; }
     .line-bus { font-size: 21px; z-index: 2; line-height: 1; }
     .line-label { font-weight: 850; }
     .line-label small { color: var(--muted); font-weight: 750; font-size: 12px; }
@@ -978,7 +982,7 @@
           <p class="sub" id="lineSub">강남역 방면 · 🚌 3정거장 전</p>
         </div>
         <div class="line-wrap"><div id="lineStops"></div>
-          <p class="meta" style="margin-top:14px">※ 노선 경로는 샘플 UI입니다. 공공데이터 키 연동 시 실제 정류장·실시간 위치로 표시됩니다.</p>
+          <p class="meta" style="margin-top:14px" id="lineFootNote"></p>
         </div>
         <nav class="tabs">
           <button class="tab" data-goto="map"><b>⌖</b>지도</button>
@@ -1288,7 +1292,11 @@
       }
     }
     // 서울 지하철 실시간 도착(OA-12764) — 역명 기준, 프록시 경유
-    const SUBWAY_ID = { "1001":"1호선","1002":"2호선","1003":"3호선","1004":"4호선","1005":"5호선","1006":"6호선","1007":"7호선","1008":"8호선","1009":"9호선","1032":"GTX-A","1061":"중앙선","1063":"경의중앙","1065":"공항철도","1067":"경춘","1075":"수인분당","1077":"신분당","1081":"경강","1092":"우이신설","1093":"서해","1094":"신림" };
+    // 라벨은 실시간위치(realtimePosition)가 받는 노선명 기준으로 통일
+    const SUBWAY_ID = { "1001":"1호선","1002":"2호선","1003":"3호선","1004":"4호선","1005":"5호선","1006":"6호선","1007":"7호선","1008":"8호선","1009":"9호선","1032":"GTX-A","1061":"중앙선","1063":"경의중앙선","1065":"공항철도","1067":"경춘선","1075":"수인분당선","1077":"신분당선","1081":"경강선","1092":"우이신설선","1093":"서해선","1094":"신림선" };
+    // 공식 노선 색 (역 점·노선 레일·도착 번호박스에 적용)
+    const LINE_COLOR = { "1호선":"#0d3692","2호선":"#00a84d","3호선":"#ef7c1c","4호선":"#00a5de","5호선":"#996cac","6호선":"#cd7c2f","7호선":"#747f00","8호선":"#e6186c","9호선":"#bb8336","공항철도":"#0090d2","경의중앙선":"#77c4a3","수인분당선":"#f5a200","신분당선":"#d4003b","경춘선":"#0c8e72","우이신설선":"#b7c452","서해선":"#8fc740","경강선":"#003da5","중앙선":"#77c4a3","신림선":"#6789ca","GTX-A":"#99509f" };
+    const lineColor = no => LINE_COLOR[no] || "#06530B";
     async function fetchSubwayArrivals(stationName) {
       if (!CONFIG.SEOUL_SUBWAY_KEY || !CONFIG.PROXY) return null;
       const tryFetch = async (name) => {
@@ -1307,16 +1315,20 @@
       let rows = [];
       for (const n of tried) { rows = await tryFetch(n); if (rows.length) break; }
       if (!rows.length) console.info("[존급] 지하철 도착 0건 — 시도한 역명:", tried);
-      return rows.map(r => {
-        const p = parseSubwayMsg(r.arvlMsg2);
+      const mapped = rows.map(r => {
+        const msg = r.arvlMsg2 || "";
+        const p = parseSubwayMsg(msg);
         const sec = Number(r.barvlDt) || 0;
-        const min = sec > 0 ? Math.max(1, Math.round(sec / 60)) : p.min;
-        const cls = (min && min <= 2) || /도착|진입|출발/.test(r.arvlMsg2 || "") ? "hot" : (min && min <= 6) ? "mid" : "low";
+        const min = sec > 0 ? Math.max(1, Math.round(sec / 60)) : p.min;   // 0 = 분 정보 없음(메시지로 표기)
+        const arriving = /도착|진입/.test(msg);
+        const sk = min > 0 ? min : arriving ? 0 : /전역|출발/.test(msg) ? 0.5 : (p.prev || 40);  // 도착 임박순 정렬키
+        const cls = (min && min <= 2) || arriving ? "hot" : (min && min <= 6) ? "mid" : "low";
         const level = cls === "hot" ? "곧" : cls === "mid" ? "조금" : "여유";
-        return { no: SUBWAY_ID[r.subwayId] || "지하철", to: r.trainLineNm || r.bstatnNm || "", min: min || 1,
-                 prev: p.prev, posMsg: r.arvlMsg2 || "", cur: r.arvlMsg3 || "", dest: r.bstatnNm || "",
+        return { no: SUBWAY_ID[r.subwayId] || "지하철", to: r.trainLineNm || r.bstatnNm || "", min,
+                 prev: p.prev, posMsg: msg, cur: r.arvlMsg3 || "", dest: r.bstatnNm || "", sk,
                  up: String(r.updnLine === "상행" || r.updnLine === "0" ? "0" : "1"), sid: r.statnId || "", level, cls };
       });
+      return mapped.sort((a, b) => a.sk - b.sk);   // 곧 도착이 위로
     }
     function parseSubwayMsg(msg) {
       msg = msg || "";
@@ -1476,15 +1488,17 @@
       const sub = currentMode === "subway";
       const veh = sub ? "🚇" : "🚌";
       document.getElementById("busRows").innerHTML = list.map(r => {
-        // 위치줄: 실데이터 메시지(posMsg) 우선, 없으면 정거장수 시각화
-        const pos = r.posMsg ? `${veh} ${r.posMsg}` : stopsAway(r.prev);
         const dir = r.to ? (/(방면|행)$/.test(r.to) ? r.to : r.to + " 방면") : "방면 정보 없음";  // 지하철 trainLineNm은 이미 '…방면'
+        // 도착줄: 실제 '분'이 있을 때만 'N분 후', 없으면 도착 메시지(전역 출발 등) 그대로
+        const eta = r.min ? `<span class="dist">${r.min}분</span> 후 도착` : (r.posMsg || "곧 도착");
+        // 위치줄: 지하철=열차 현재 역(arvlMsg3), 버스=정거장수 시각화
+        const pos = sub ? `${veh} ${r.cur ? r.cur + " 부근" : (r.posMsg || "운행 중")}` : stopsAway(r.prev);
         return `
         <div class="bus-row">
-          <div class="route-no">${r.no}</div>
+          <div class="route-no" style="background:${lineColor(r.no)}">${r.no}</div>
           <div class="bus-info line-open" data-no="${r.no}" data-to="${r.to || ""}" data-prev="${r.prev || 0}" data-up="${r.up || ""}">
             <b>${dir}</b>
-            <div class="meta"><span class="dist">${r.min}분</span> 후 도착</div>
+            <div class="meta">${eta}</div>
           </div>
           <div class="level ${r.cls}"><span class="cat">${CAT[r.cls] || "😺"}</span>${r.level}</div>
           <button class="heart routeHeart" data-no="${r.no}" data-to="${r.to || ""}" title="${sub ? "이 호선/방면" : "이 버스"} 즐겨찾기">${isFav(routeFav(r.no, r.to || "")) ? "♥" : "♡"}</button>
@@ -1493,13 +1507,28 @@
       }).join("");
       bindRouteHearts(); bindLineOpen();
     }
-    function renderLineStops(stops) {
-      document.getElementById("lineStops").innerHTML = stops.map(s => `
+    function renderLineStops(stops, color) {
+      const box = document.getElementById("lineStops");
+      box.style.setProperty("--lc", color || "#06530B");        // 노선 색 → 점·레일에 반영
+      document.getElementById("lineTitle").style.color = color || "var(--charcoal)";
+      box.innerHTML = stops.map(s => `
         <div class="line-stop ${s.cls || ""}">
           <div class="line-node">${s.icon ? `<span class="line-bus">${s.icon}</span>` : '<span class="line-dot"></span>'}</div>
           <div class="line-label ${s.faint ? "faint" : ""}">${s.label}${s.tag ? ` <small>${s.tag}</small>` : ""}</div>
         </div>`).join("");
       show("busline");
+      centerHere();
+    }
+    // 승차역(현재 역)을 스크롤 화면 가운데로 (화면 표시 후 레이아웃 잡히면 계산, 안 되면 재시도)
+    function centerHere(tries = 0) {
+      const wrap = document.querySelector(".line-wrap");
+      const here = wrap && wrap.querySelector(".line-stop.here");
+      if (!wrap || !here || wrap.clientHeight === 0) {
+        if (tries < 10) setTimeout(() => centerHere(tries + 1), 50);
+        return;
+      }
+      const w = wrap.getBoundingClientRect(), h = here.getBoundingClientRect();
+      wrap.scrollTop += (h.top - w.top) - wrap.clientHeight / 2 + h.height / 2;
     }
     // 서울 실시간 열차위치 — 노선 전체의 모든 운행 열차(역명·상하행·종착·상태)
     async function fetchLinePositions(lineName) {
@@ -1514,6 +1543,44 @@
     const TRAIN_STT = { "0": "진입", "1": "도착", "2": "출발", "3": "전역출발" };
     const seq = id => Number(String(id || "").slice(-6)) || 0;   // statnId 끝 6자리 = 노선 내 역 순서
     const cleanNm = nm => (nm || "").replace(/(종착|행)$/, "").trim();
+    // 역명 비교용 키: 괄호·'N호선'·종착/행·끝'역' 제거 (예: "서울역 1호선" → "서울")
+    const normNm = nm => (nm || "").replace(/\(.*?\)/g, "").replace(/\s*\d+호선/g, "").replace(/(종착|행)$/, "").replace(/역$/, "").trim();
+
+    // 노선 전체 역 목록(서울 subwayStationMaster) — 1회 받아 localStorage 캐시(정적 데이터)
+    const LINE_TO_ROUTE = { "공항철도": "공항철도1호선", "GTX-A": "수도권 광역급행철도" };  // master ROUTE명이 라벨과 다른 단일 노선
+    // 코레일 직결 노선은 master가 여러 ROUTE로 쪼개 저장 → 구간을 이어붙여 전 구간 복원 (북→남 순)
+    const LINE_ROUTES = {
+      "1호선": ["경원선", "1호선", "경부선", "장항선", "경인선"],
+      "4호선": ["4호선", "과천선", "안산선"],
+      "수인분당선": ["분당선", "수인선"]
+    };
+    let stnMaster = null;
+    async function loadStationMaster() {
+      if (stnMaster && Object.keys(stnMaster).length) return stnMaster;   // 비어있으면 캐시로 안 침
+      try { const c = JSON.parse(localStorage.getItem("jongeup_stnmaster_v2") || "null"); if (c && Object.keys(c).length) { stnMaster = c; return stnMaster; } } catch (e) {}
+      if (!CONFIG.SEOUL_SUBWAY_KEY || !CONFIG.PROXY) return {};
+      try {
+        const url = `http://openapi.seoul.go.kr:8088/${CONFIG.SEOUL_SUBWAY_KEY}/json/subwayStationMaster/1/800/`;
+        const res = await fetch(CONFIG.PROXY + url);
+        const rows = (await res.json())?.subwayStationMaster?.row || [];
+        const byRoute = {};
+        rows.forEach(r => { (byRoute[r.ROUTE] = byRoute[r.ROUTE] || []).push({ nm: r.BLDN_NM, id: r.BLDN_ID, lat: Number(r.LAT), lng: Number(r.LOT) }); });
+        Object.values(byRoute).forEach(arr => arr.sort((a, b) => String(a.id).localeCompare(String(b.id))));  // BLDN_ID = 노선 내 순서
+        if (Object.keys(byRoute).length) {   // 성공(비어있지 않을 때만) 캐시
+          stnMaster = byRoute;
+          try { localStorage.setItem("jongeup_stnmaster_v2", JSON.stringify(byRoute)); } catch (e) {}
+          return stnMaster;
+        }
+      } catch (e) { console.warn("[존급] 역 목록 실패:", e); }
+      return {};   // 실패 시 캐시하지 않음 → 다음에 재시도
+    }
+    async function getLineStations(lineLabel) {
+      const m = await loadStationMaster();
+      const routes = LINE_ROUTES[lineLabel] || [LINE_TO_ROUTE[lineLabel] || lineLabel];   // 분할 노선은 구간 합치기
+      const seen = new Set(), out = [];
+      routes.forEach(rt => (m[rt] || []).forEach(s => { const k = normNm(s.nm); if (!seen.has(k)) { seen.add(k); out.push(s); } }));
+      return out;
+    }
 
     // 노선 타임라인: 실시간이면 노선 전체 역 + 모든 열차 위치, 아니면 샘플
     async function openLine(no, to, prev, mode, up) {
@@ -1521,39 +1588,48 @@
       const veh = sub ? "🚇" : "🚌", stopW = sub ? "역" : "정류장", unit = sub ? "역" : "정거장";
       document.getElementById("lineTitle").textContent = sub ? no : no + "번";
 
-      // ① 실데이터(지하철): realtimePosition 으로 노선 전체를 실제 역명으로
+      // ① 실데이터(지하철): 노선 전체 역(역목록) + 실시간 열차위치 오버레이
       if (sub && CONFIG.SEOUL_SUBWAY_KEY && CONFIG.PROXY) {
         document.getElementById("lineSub").textContent = "실시간 열차 위치 불러오는 중…";
         document.getElementById("lineStops").innerHTML = "";
         show("busline");
-        const all = await fetchLinePositions(no);
+        const [all, stations] = await Promise.all([fetchLinePositions(no), getLineStations(no)]);
         const trains = all.filter(t => up === "" || String(t.updnLine) === String(up));
-        if (trains.length) {
-          // 역 축: 열차들이 위치한 역들을 statnId 순서로 (노선 따라 정렬). 승차역도 끼워넣음
-          const byId = new Map();
-          trains.forEach(t => {
-            const k = t.statnId;
-            if (!byId.has(k)) byId.set(k, { id: k, nm: cleanNm(t.statnNm), trains: [] });
-            byId.get(k).trains.push(t);
-          });
-          const hereId = currentBus && currentBus.hereId;
-          if (hereId && !byId.has(hereId)) byId.set(hereId, { id: hereId, nm: (currentBus.name || "").replace(/역$/, ""), trains: [] });
-          const axis = [...byId.values()].sort((a, b) => seq(a.id) - seq(b.id));
-          const dest = cleanNm(trains[0].statnTnm) || (to || "").replace(/행.*$/, "");
-          document.getElementById("lineSub").textContent = `${to || dest + " 방면"} · 실시간 ${trains.length}대 운행 중`;
-          renderLineStops(axis.map(s => {
-            const here = s.id === hereId;
-            const t = s.trains[0];
+        const tmap = {};
+        trains.forEach(t => { const k = normNm(t.statnNm); (tmap[k] = tmap[k] || []).push(t); });
+        const hereName = normNm((currentBus && currentBus.name) || "");
+
+        // 전체 역 목록이 있으면: 모든 역을 점(●)으로, 열차 있는 역만 🚇
+        if (stations.length) {
+          document.getElementById("lineSub").textContent = `${to || ""} · 실시간 ${trains.length}대 운행 중`;
+          document.getElementById("lineFootNote").textContent = "🚇 서울 지하철 실시간 — 역 순서·열차 위치 모두 실데이터입니다. (●=역, 🚇=현재 열차)";
+          if (!stations.some(s => normNm(s.nm) === hereName))
+            console.warn("[존급] 승차역 매칭 실패 — currentBus.name:", currentBus && currentBus.name, "→ key:", hereName, "| 역 예시:", stations.slice(0, 5).map(s => s.nm));
+          renderLineStops(stations.map(s => {
+            const k = normNm(s.nm), list = tmap[k] || [], here = k === hereName;
             return {
-              icon: t ? veh : null,
+              icon: list.length ? veh : null,                 // 열차 없으면 점(●), 있으면 🚇
               cls: here ? "here" : "",
               label: s.nm + (here ? " (승차역·여기)" : ""),
-              tag: t ? `열차 ${TRAIN_STT[t.trainSttus] || "운행"}${s.trains.length > 1 ? ` · ${s.trains.length}대` : ""}` : ""
+              tag: list.length ? `열차 ${TRAIN_STT[list[0].trainSttus] || "운행"}${list.length > 1 ? ` · ${list.length}대` : ""}` : ""
             };
-          }));
+          }), lineColor(no));
+          return;
+        }
+
+        // 역 목록을 못 받으면: 열차 있는 역만이라도 순서대로(폴백)
+        if (trains.length) {
+          const byId = new Map();
+          trains.forEach(t => { if (!byId.has(t.statnId)) byId.set(t.statnId, { id: t.statnId, nm: cleanNm(t.statnNm) }); });
+          const axis = [...byId.values()].sort((a, b) => seq(a.id) - seq(b.id));
+          document.getElementById("lineSub").textContent = `${to || ""} · 실시간 ${trains.length}대 운행 중`;
+          document.getElementById("lineFootNote").textContent = "🚇 실시간 열차 위치(실데이터). 이 노선은 전체 역 목록이 없어 운행 중인 역만 표시됩니다.";
+          renderLineStops(axis.map(s => ({ icon: veh, cls: normNm(s.nm) === hereName ? "here" : "",
+            label: s.nm + (normNm(s.nm) === hereName ? " (승차역·여기)" : ""), tag: "운행 중" })), lineColor(no));
           return;
         }
         document.getElementById("lineSub").textContent = "실시간 운행 열차가 없어요 (막차·운행종료 등)";
+        document.getElementById("lineFootNote").textContent = "";
         return;
       }
 
@@ -1572,6 +1648,7 @@
         else if (i === t2 && t2 >= 0) { s.icon = veh; s.faint = false; s.tag = "다음 차량"; }
         stops.push(s);
       }
+      document.getElementById("lineFootNote").textContent = "※ 버스 노선 경로는 샘플 UI입니다. TAGO 키 연동 시 실제 정류장·실시간 위치로 표시됩니다.";
       renderLineStops(stops);
     }
 
