@@ -507,6 +507,11 @@
       place-items: center;
     }
     .detail-hero .ph-label { color: rgba(26,26,26,.45); font-weight: 850; }
+    .hero-map { position: absolute; inset: 0; }
+    .detail-hero a.photo-link { color: var(--charcoal); text-decoration: none; background: var(--cream); border: 1px solid var(--line); padding: 10px 16px; border-radius: 11px; box-shadow: 0 5px 14px rgba(0,0,0,.12); cursor: pointer; }
+    .detail-hero a.photo-link:active { transform: scale(.97); }
+    /* 지도 위에 올라가는 작은 '사진·정보' 알약 버튼 */
+    .detail-hero a.photo-link.corner { position: absolute; bottom: 12px; right: 14px; padding: 7px 12px; font-size: 12px; z-index: 2; }
     .top-icons {
       position: absolute;
       top: 12px;
@@ -816,7 +821,7 @@
           <div>
             <div class="logo-pin"><span>급</span></div>
             <div class="brand">존급</div>
-            <div class="tagline">존나 급할 때, 존급</div>
+            <div class="tagline">급할수록, 존급</div>
             <div class="version">v0.1 · 대한민국 전체 지원</div>
           </div>
         </div>
@@ -905,7 +910,8 @@
       <section class="screen" data-screen="detail">
         <div class="page" style="padding-top:0">
           <div class="detail-hero">
-            <span class="ph-label">매장 사진</span>
+            <div id="detailMap" class="hero-map"></div>
+            <a id="detailPhoto" class="ph-label" target="_blank" rel="noopener">매장 사진</a>
             <div class="top-icons">
               <button class="icon-btn" data-goto="map">←</button>
               <button class="icon-btn heart" id="detailHeart" style="font-size:20px">♡</button>
@@ -1154,7 +1160,8 @@
       } else {
         favorites.push({
           kind: place.kind, name: place.name, meta: place.meta || "", distance: place.distance || 0,
-          addr: place.addr || "", target: place.target || "detail", tags: place.tags || [],
+          addr: place.addr || "", target: place.target || "detail", tags: place.tags || [], placeUrl: place.placeUrl || "",
+          lat: place.lat, lng: place.lng,
           to: place.to || "", stopName: place.stopName, citycode: place.citycode, nodeid: place.nodeid, nodeno: place.nodeno
         });
       }
@@ -1257,6 +1264,28 @@
       ).join("");
       syncDetailHeart();
       show("detail");
+      renderDetailHero(place);
+    }
+    // 상세 상단: 그 위치의 지도 이미지(정적지도) + '사진·정보' 링크. 좌표/SDK 없으면 링크만/안내
+    function renderDetailHero(place) {
+      const map = document.getElementById("detailMap");
+      const photo = document.getElementById("detailPhoto");
+      const hasMap = place.lat && place.lng && window.kakao && window.kakao.maps && window.kakao.maps.StaticMap;
+      if (hasMap) {
+        map.style.display = "block"; map.innerHTML = "";
+        requestAnimationFrame(() => {
+          map.innerHTML = "";
+          const pos = new window.kakao.maps.LatLng(place.lat, place.lng);
+          new window.kakao.maps.StaticMap(map, { center: pos, level: 3, marker: { position: pos } });
+        });
+        if (place.placeUrl) { photo.href = place.placeUrl; photo.textContent = "📷 사진·정보"; photo.className = "ph-label photo-link corner"; photo.style.display = ""; }
+        else { photo.style.display = "none"; }
+      } else {
+        map.style.display = "none"; map.innerHTML = "";
+        photo.className = "ph-label"; photo.style.display = "";
+        if (place.placeUrl) { photo.href = place.placeUrl; photo.textContent = "📷 카카오맵에서 사진·정보 보기"; photo.classList.add("photo-link"); }
+        else { photo.removeAttribute("href"); photo.textContent = "사진 정보 없음"; }
+      }
     }
     // 버스 상세: 정류소명/번호 + 실시간 도착정보(TAGO)
     async function openBus(place) {
@@ -1914,7 +1943,8 @@
                 meta: d.road_address_name || d.address_name || "",
                 tags,
                 target: t.kind === "bus" ? "bus" : "detail",
-                addr: d.road_address_name || d.address_name || "", phone: d.phone || ""
+                addr: d.road_address_name || d.address_name || "", phone: d.phone || "", placeUrl: d.place_url || "",
+                lat: Number(d.y), lng: Number(d.x)
               }, d.y, d.x);
             });
           }
