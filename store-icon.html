@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>존급 · 스토어 아이콘 생성기</title>
+<style>
+  body { font-family: -apple-system, "Noto Sans KR", sans-serif; background: #f4f2ea; color: #1a1a1a; margin: 0; padding: 32px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  p.sub { color: #666; margin: 0 0 24px; }
+  .row { display: flex; gap: 28px; flex-wrap: wrap; align-items: flex-start; }
+  .card { background: #fff; border-radius: 18px; padding: 20px; box-shadow: 0 10px 30px rgba(0,0,0,.08); }
+  .card h2 { font-size: 15px; margin: 0 0 12px; }
+  .preview { width: 240px; height: 240px; border-radius: 12px; overflow: hidden; }
+  .ctrls { margin: 14px 0 0; display: flex; gap: 8px; flex-wrap: wrap; }
+  button { border: 0; background: #06530B; color: #fff; font-weight: 800; padding: 10px 14px; border-radius: 10px; cursor: pointer; font-size: 13px; }
+  button.alt { background: #1a1a1a; }
+  .bgpick { margin-bottom: 20px; }
+  .bgpick button { background: #fff; color: #1a1a1a; border: 2px solid #ddd; }
+  .bgpick button.on { border-color: #06530B; color: #06530B; }
+  .note { font-size: 12px; color: #888; margin-top: 8px; line-height: 1.5; }
+  code { background: #eee; padding: 1px 5px; border-radius: 4px; }
+</style>
+</head>
+<body>
+  <h1>존급 · 앱스토어 / 구글플레이 아이콘</h1>
+  <p class="sub">배경을 고르고 다운로드 버튼을 누르면 PNG가 저장됩니다. (브라우저에서 바로 생성)</p>
+
+  <div class="bgpick">
+    <b style="margin-right:8px">배경:</b>
+    <button data-bg="lavender" class="on">라벤더(인트로 동일)</button>
+    <button data-bg="green">그린</button>
+    <button data-bg="cream">크림</button>
+  </div>
+
+  <div class="row">
+    <div class="card">
+      <h2>App Store — 1024 × 1024</h2>
+      <div class="preview" id="prevA"></div>
+      <div class="ctrls"><button onclick="dl(1024,'jongeup_appstore_1024.png')">PNG 1024 다운로드</button></div>
+      <div class="note">투명도 없음(요구사항 충족). 모서리는 애플이 자동으로 둥글게 처리합니다.</div>
+    </div>
+    <div class="card">
+      <h2>Google Play — 512 × 512</h2>
+      <div class="preview" id="prevB" style="width:200px;height:200px"></div>
+      <div class="ctrls">
+        <button onclick="dl(512,'jongeup_play_512.png')">PNG 512 다운로드</button>
+        <button class="alt" onclick="dl(1024,'jongeup_play_hi_1024.png')">고해상 1024</button>
+      </div>
+      <div class="note">적응형 아이콘 안전영역을 고려해 가운데 핀을 충분히 띄웠습니다.</div>
+    </div>
+    <div class="card">
+      <h2>원본 SVG</h2>
+      <div class="preview" id="prevC" style="width:160px;height:160px"></div>
+      <div class="ctrls"><button class="alt" onclick="dlSvg()">SVG 다운로드</button></div>
+      <div class="note">무손실 벡터. 다른 크기/플랫폼용으로 재활용.</div>
+    </div>
+  </div>
+
+<script>
+  const BG = { lavender: "#BBBFEC", green: "#0A6B10", cream: "#FDFCF7" };
+  let bg = "lavender";
+
+  // 인트로 로고핀(급)을 정사각 아이콘으로. center 512,512 / 둥근 사각 + 한 모서리 뾰족(브랜드 핀)
+  function svg(size) {
+    const cream = "#FDFCF7", green = "#06530B";
+    const pinFill = bg === "cream" ? "#BBBFEC" : cream;      // 크림 배경일 땐 핀을 라벤더로
+    const glyph = green;
+    const pinPath = "M397 302 L627 302 A95 95 0 0 1 722 397 L722 627 A95 95 0 0 1 627 722 L316 722 A14 14 0 0 1 302 708 L302 397 A95 95 0 0 1 397 302 Z";
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 1024 1024">
+      <rect width="1024" height="1024" fill="${BG[bg]}"/>
+      <g transform="rotate(-45 512 512)">
+        <path d="${pinPath}" transform="translate(20 26)" fill="#1d2433" opacity="0.18"/>
+        <path d="${pinPath}" fill="${pinFill}" stroke="${green}" stroke-width="22"/>
+      </g>
+      <text x="512" y="512" fill="${glyph}" font-family="-apple-system,'Apple SD Gothic Neo','Noto Sans KR',sans-serif" font-size="330" font-weight="900" text-anchor="middle" dominant-baseline="central">급</text>
+    </svg>`;
+  }
+
+  function paint() {
+    document.getElementById("prevA").innerHTML = svg(240);
+    document.getElementById("prevB").innerHTML = svg(200);
+    document.getElementById("prevC").innerHTML = svg(160);
+  }
+  function dl(size, name) {
+    const img = new Image();
+    const blob = new Blob([svg(1024)], { type: "image/svg+xml;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    img.onload = () => {
+      const c = document.createElement("canvas"); c.width = size; c.height = size;
+      const x = c.getContext("2d"); x.drawImage(img, 0, 0, size, size);
+      URL.revokeObjectURL(url);
+      c.toBlob(b => { const a = document.createElement("a"); a.href = URL.createObjectURL(b); a.download = name; a.click(); }, "image/png");
+    };
+    img.src = url;
+  }
+  function dlSvg() {
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([svg(1024)], { type: "image/svg+xml" }));
+    a.download = "jongeup_icon.svg"; a.click();
+  }
+  document.querySelectorAll(".bgpick button").forEach(b => b.addEventListener("click", () => {
+    bg = b.dataset.bg;
+    document.querySelectorAll(".bgpick button").forEach(x => x.classList.toggle("on", x === b));
+    paint();
+  }));
+  paint();
+</script>
+</body>
+</html>

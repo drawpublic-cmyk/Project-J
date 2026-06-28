@@ -119,7 +119,15 @@
       display: grid;
       place-items: center;
       margin: 0 auto 18px;
+      animation: pinWobble 1.6s ease-in-out infinite;   /* 로딩 흔들 애니메이션 */
     }
+    @keyframes pinWobble {
+      0%, 100% { transform: rotate(-45deg) translateY(0); }
+      20%      { transform: rotate(-54deg) translateY(-4px); }
+      45%      { transform: rotate(-38deg) translateY(0); }
+      70%      { transform: rotate(-48deg) translateY(-2px); }
+    }
+    @media (prefers-reduced-motion: reduce) { .logo-pin { animation: none; } }
     .logo-pin span {
       transform: rotate(45deg);
       font-size: 34px;
@@ -2161,10 +2169,11 @@
     // URL 해시로 특정 화면 바로 보기 (#map, #list, #detail, #route, #search, #bus, #sos)
     const screens = ["splash","onboard","map","list","fav","detail","route","search","bus","busline","sos"];
     const fromHash = location.hash.replace("#", "");
-    if (screens.includes(fromHash)) {
+    if (screens.includes(fromHash) && fromHash !== "splash") {
       show(fromHash);
     } else {
-      setTimeout(() => show("onboard"), 900);
+      // 해시 없음 또는 #splash → 스플래시 보여주고 자동으로 온보딩으로 (안 넘어가는 문제 방지)
+      setTimeout(() => show("onboard"), 1600);   // 로딩 애니메이션 보이도록 살짝 길게
     }
     window.addEventListener("hashchange", () => {
       const h = location.hash.replace("#", "");
