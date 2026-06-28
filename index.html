@@ -16,12 +16,12 @@
       --charcoal:    #1A1A1A; /* 본문 텍스트, 로고 글자 */
       --pink-accent: #E5407A; /* 보조 액센트(전화 아이콘, 검색 결과 핀) ※ 소량만 */
 
-      /* 카테고리별 색 (사용자 요청: 색으로 구분) */
-      --c-toilet: #2E86DE; /* 화장실 - 파랑 */
-      --c-store:  #16A34A; /* 편의점 - 초록 */
-      --c-print:  #8B5CF6; /* 프린터 - 보라 */
-      --c-subway: #F97316; /* 지하철 - 주황 */
-      --c-bus:    #0EA5A4; /* 버스   - 청록 */
+      /* 카테고리별 색 (Map Icon Set 디자인 기준) */
+      --c-toilet: #EF4444; /* 화장실 - 빨강(휴지 아이콘) */
+      --c-store:  #FF7A00; /* 편의점 - 주황 */
+      --c-print:  #7C3AED; /* 프린터 - 보라 */
+      --c-subway: #2563EB; /* 지하철 - 파랑 */
+      --c-bus:    #16A34A; /* 버스   - 초록 */
 
       /* 토큰이 아닌 파생 중립색(선/뮤트/플레이스홀더) — 의미색 6종과 구분 */
       --line:  rgba(26, 26, 26, .12);
@@ -1069,19 +1069,21 @@
     };
 
     /* ---------- 아이콘 (인라인 SVG line set, currentColor 상속) ---------- */
+    // Map Icon Set 기준: 볼드 채움(흰 글리프) 스타일. 흰색은 currentColor(핀/뱃지=흰색) 상속
     const ICON_SVG = {
-      toilet:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3h4.6v5H7z"/><path d="M5.4 8h10.7c0 3.3-1.9 5.5-4.25 5.5H9.65C7.3 13.5 5.4 11.3 5.4 8z"/><path d="M10.75 13.5V18"/><path d="M8 18h5.5"/></svg>',
-      store:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9l1.2-4h13.6L20 9"/><path d="M4 9h16v2.1a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/><path d="M5.7 13.4V20h12.6v-6.6"/><path d="M10 20v-4.2h4V20"/></svg>',
-      print:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M7 8.5V4h10v4.5"/><rect x="4" y="8.5" width="16" height="6.6" rx="1.6"/><rect x="7" y="12.6" width="10" height="6" rx="1"/><circle cx="16.7" cy="11.2" r="0.7" fill="currentColor" stroke="none"/></svg>',
-      bus:     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3.5" width="16" height="13" rx="3"/><path d="M4 10.5h16"/><circle cx="8" cy="13.4" r="0.9" fill="currentColor" stroke="none"/><circle cx="16" cy="13.4" r="0.9" fill="currentColor" stroke="none"/><path d="M7 16.5l-1 3"/><path d="M17 16.5l1 3"/></svg>',
-      subway:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="14" height="14" rx="3.5"/><path d="M5 10.2h14"/><circle cx="9" cy="13.5" r="0.9" fill="currentColor" stroke="none"/><circle cx="15" cy="13.5" r="0.9" fill="currentColor" stroke="none"/><path d="M8 17l-2.6 3.5"/><path d="M16 17l2.6 3.5"/></svg>',
+      toilet:  '<svg viewBox="0 0 24 24" fill="currentColor" fill-rule="evenodd"><path d="M7 4H14A3 3 0 0 1 17 7V14A3 3 0 0 1 14 17H7A3 3 0 0 1 4 14V7A3 3 0 0 1 7 4ZM8.1 8a2.4 1.4 0 1 0 4.8 0 2.4 1.4 0 1 0-4.8 0Z"/><path d="M13.8 16.3H17.2V20.7l-.85-.78-.85.78-.85-.78-.85.78Z"/></svg>',
+      store:   '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M3.3 4h17.4l1.05 3.95a2.25 2.25 0 0 1-4.4.55 2.25 2.25 0 0 1-4.42 0 2.25 2.25 0 0 1-4.42 0 2.25 2.25 0 0 1-4.4-.55L3.3 4z"/><path d="M5 11.1V19.2a.9.9 0 0 0 .9.9h4V15h4.2v5.1h4a.9.9 0 0 0 .9-.9V11.1a3.3 3.3 0 0 1-2.32-.92 3.32 3.32 0 0 1-4.42 0 3.32 3.32 0 0 1-4.42 0A3.3 3.3 0 0 1 5 11.1z"/></svg>',
+      print:   '<svg viewBox="0 0 24 24" fill="currentColor" fill-rule="evenodd"><path d="M7 2.8h10v4.4H7z"/><path d="M4.6 8.4h14.8A2.4 2.4 0 0 1 21.8 10.8V15.4a1.4 1.4 0 0 1-1.4 1.4h-2.6V13.2H6.2v3.6H3.6a1.4 1.4 0 0 1-1.4-1.4V10.8A2.4 2.4 0 0 1 4.6 8.4zM17.6 10.6a1 1 0 1 0 0 2 1 1 0 0 0 0-2z"/><path d="M7.6 14.4h8.8v6.8H7.6V14.4zm1.7 1.8v1h5.4v-1H9.3zm0 2.3v1h5.4v-1H9.3z"/></svg>',
+      bus:     '<svg viewBox="0 0 24 24" fill="currentColor" fill-rule="evenodd"><path d="M5 3.5h14a2.2 2.2 0 0 1 2.2 2.2V15a2.2 2.2 0 0 1-1.4 2.05V19a1.1 1.1 0 0 1-1.1 1.1h-1.1A1.1 1.1 0 0 1 15.5 19v-1.3h-7V19a1.1 1.1 0 0 1-1.1 1.1H6.3A1.1 1.1 0 0 1 5.2 19v-1.95A2.2 2.2 0 0 1 3.8 15V5.7A2.2 2.2 0 0 1 6 3.5zm1.6 3.3v3.9h10.8V6.8H6.6zM7.6 12.2a1.3 1.3 0 1 0 0 2.6 1.3 1.3 0 0 0 0-2.6zm8.8 0a1.3 1.3 0 1 0 0 2.6 1.3 1.3 0 0 0 0-2.6z"/></svg>',
+      subway:  '<svg viewBox="0 0 24 24" fill="currentColor" fill-rule="evenodd"><path d="M6.6 2.8h10.8A2.6 2.6 0 0 1 20 5.4V14a2.6 2.6 0 0 1-2.4 2.6l1.45 2.5a.65.65 0 0 1-.56.98h-1.86l-1.16-2H8.53l-1.16 2H5.5a.65.65 0 0 1-.56-.98L6.4 16.6A2.6 2.6 0 0 1 4 14V5.4A2.6 2.6 0 0 1 6.6 2.8zM7 6.1v3.4h4.2V6.1H7zm5.8 0v3.4H17V6.1h-4.2zM8 11.4a1.35 1.35 0 1 0 0 2.7 1.35 1.35 0 0 0 0-2.7zm8 0a1.35 1.35 0 1 0 0 2.7 1.35 1.35 0 0 0 0-2.7z"/></svg>',
       location:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s6.4-5.7 6.4-10.5A6.4 6.4 0 1 0 5.6 10.5C5.6 15.3 12 21 12 21z"/><circle cx="12" cy="10.2" r="2.3"/></svg>'
     };
     ICON_SVG.busroute = ICON_SVG.bus;       // 버스 노선 즐겨찾기는 버스 아이콘 재사용
     ICON_SVG.subwayline = ICON_SVG.subway;  // 지하철 노선 즐겨찾기는 지하철 아이콘 재사용
     function iconSvg(kind, size = 18) {
       const s = ICON_SVG[kind];
-      return s ? s.replace("<svg ", `<svg width="${size}" height="${size}" style="display:block" `) : "";
+      const px = Math.round(size * 1.2);   // 전체 아이콘 살짝 키움(핀·뱃지·칩 공통)
+      return s ? s.replace("<svg ", `<svg width="${px}" height="${px}" style="display:block" `) : "";
     }
     // 교통수단(버스·지하철)은 brand-green, 나머지 카테고리는 lavender (사양 확장)
     const isTransit = kind => kind === "bus" || kind === "subway";
@@ -1768,7 +1770,7 @@
     }
 
     // 카테고리별 색 (CSS 변수와 동일)
-    const KIND_COLOR = { toilet: "#2E86DE", store: "#16A34A", print: "#8B5CF6", subway: "#F97316", bus: "#0EA5A4", busroute: "#0EA5A4", subwayline: "#F97316" };
+    const KIND_COLOR = { toilet: "#EF4444", store: "#FF7A00", print: "#7C3AED", subway: "#2563EB", bus: "#16A34A", busroute: "#16A34A", subwayline: "#2563EB" };
     function pinHtml(kind) {
       const bg = KIND_COLOR[kind] || "#06530B";
       return `<div style="width:30px;height:30px;border:2px solid #fff;border-radius:15px 15px 15px 3px;transform:rotate(-45deg);background:${bg};display:grid;place-items:center;box-shadow:0 6px 14px rgba(0,0,0,.2)"><span style="transform:rotate(45deg);color:#fff;display:grid;place-items:center">${iconSvg(kind, 16)}</span></div>`;
