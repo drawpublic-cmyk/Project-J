@@ -1421,6 +1421,7 @@
       if (screen === "map" && !mapStarted && CONFIG.KAKAO_JS_KEY) requestLocation(); // 지도 진입 시 실제 지도 자동 로드
       if (screen === "fav") renderFav();
       if (screen === "search") { renderRecent(); const sb = document.getElementById("searchBox"); if (sb) setTimeout(() => sb.focus(), 50); }
+      if (screen !== "busline") stopLinePoll();   // 노선 화면 벗어나면 자동갱신 중단
     }
     function bindNavigation(root = document) {
       root.querySelectorAll("[data-goto]").forEach(el => {
@@ -1558,8 +1559,11 @@
       }).join("");
       bindRouteHearts(); bindLineOpen();
     }
-    function renderLineStops(stops, color) {
+    function renderLineStops(stops, color, opts) {
       const box = document.getElementById("lineStops");
+      const wrap = document.querySelector(".line-wrap");
+      const keep = opts && opts.keepScroll;
+      const savedTop = keep && wrap ? wrap.scrollTop : 0;     // 자동갱신 시 스크롤 위치 유지
       box.style.setProperty("--lc", color || "#06530B");        // 노선 색 → 점·레일에 반영
       document.getElementById("lineTitle").style.color = color || "var(--charcoal)";
       box.innerHTML = stops.map(s => `
@@ -1567,8 +1571,32 @@
           <div class="line-node">${s.icon ? `<span class="line-bus">${s.icon}</span>` : '<span class="line-dot"></span>'}</div>
           <div class="line-label ${s.faint ? "faint" : ""}">${s.label}${s.tag ? ` <small>${s.tag}</small>` : ""}</div>
         </div>`).join("");
-      show("busline");
-      centerHere();
+      if (keep) { if (wrap) wrap.scrollTop = savedTop; }        // 갱신: 위치 유지(화면 안 튐)
+      else { show("busline"); centerHere(); }                   // 최초: 표시 + 승차역 가운데
+    }
+    // 노선 자동갱신(폴링) — busline 화면에서만, 떠나면 중단
+    let lineTimer = null, lineState = null;
+    function stopLinePoll() { if (lineTimer) { clearInterval(lineTimer); lineTimer = null; } }
+    function buildSubwayStops(axis, trains, hereName) {
+      const tmap = {};
+      trains.forEach(t => { const k = normNm(t.statnNm); (tmap[k] = tmap[k] || []).push(t); });
+      return axis.map(s => {
+        const k = normNm(s.nm), list = tmap[k] || [], here = k === hereName;
+        const exp = list.some(t => String(t.directAt) === "1" || /급행|특급/.test(t.btrainSttus || ""));
+        return { icon: list.length ? "🚇" : null, cls: here ? "here" : "",
+          label: s.nm + (here ? " (승차역·여기)" : ""),
+          tag: list.length ? `${exp ? '<span class="exp">급행</span> ' : ""}열차 ${TRAIN_STT[list[0].trainSttus] || "운행"}${list.length > 1 ? ` · ${list.length}대` : ""}` : "" };
+      });
+    }
+    function startSubwayPoll() {
+      stopLinePoll();
+      lineTimer = setInterval(async () => {
+        if (!lineState || lineState.mode !== "subway") return stopLinePoll();
+        const all = await fetchLinePositions(lineState.no);
+        const trains = all.filter(t => lineState.up === "" || String(t.updnLine) === String(lineState.up));
+        document.getElementById("lineSub").textContent = `${lineState.to || ""} · 실시간 ${trains.length}대 운행 중`;
+        renderLineStops(buildSubwayStops(lineState.axis, trains, lineState.hereName), lineState.color, { keepScroll: true });
+      }, 8000);   // 8초마다 갱신
     }
     // 승차역(현재 역)을 스크롤 화면 가운데로 (화면 표시 후 레이아웃 잡히면 계산, 안 되면 재시도)
     function centerHere(tries = 0) {
@@ -1635,6 +1663,7 @@
 
     // 노선 타임라인: 실시간이면 노선 전체 역 + 모든 열차 위치, 아니면 샘플
     async function openLine(no, to, prev, mode, up) {
+      stopLinePoll(); lineState = null;   // 새 노선 진입 시 이전 폴링 중단
       const sub = mode === "subway";
       const veh = sub ? "🚇" : "🚌", stopW = sub ? "역" : "정류장", unit = sub ? "역" : "정거장";
       document.getElementById("lineTitle").textContent = sub ? no : no + "번";
@@ -1664,16 +1693,10 @@
           let pivot = axis.findIndex(s => normNm(s.nm) === dirStn);
           if (pivot < 0) pivot = axis.findIndex(s => normNm(s.nm) === termStn);
           if (pivot >= 0 && hi >= 0 && pivot < hi) axis.reverse();   // 방면/종착이 위에 있으면 뒤집어 아래로
-          renderLineStops(axis.map(s => {
-            const k = normNm(s.nm), list = tmap[k] || [], here = k === hereName;
-            const exp = list.some(t => String(t.directAt) === "1" || /급행|특급/.test(t.btrainSttus || ""));   // 급행 열차
-            return {
-              icon: list.length ? veh : null,                 // 열차 없으면 점(●), 있으면 🚇
-              cls: here ? "here" : "",
-              label: s.nm + (here ? " (승차역·여기)" : ""),
-              tag: list.length ? `${exp ? '<span class="exp">급행</span> ' : ""}열차 ${TRAIN_STT[list[0].trainSttus] || "운행"}${list.length > 1 ? ` · ${list.length}대` : ""}` : ""
-            };
-          }), lineColor(no));
+          document.getElementById("lineFootNote").textContent = "🚇 서울 지하철 실시간 — 8초마다 자동 갱신, 열차가 역을 따라 이동합니다. (●=역, 🚇=현재 열차)";
+          lineState = { mode: "subway", no, up, to, axis, hereName, color: lineColor(no) };   // 폴링용 상태
+          renderLineStops(buildSubwayStops(axis, trains, hereName), lineState.color);
+          startSubwayPoll();
           return;
         }
 
@@ -1708,7 +1731,7 @@
         else if (i === t2 && t2 >= 0) { s.icon = veh; s.faint = false; s.tag = "다음 차량"; }
         stops.push(s);
       }
-      document.getElementById("lineFootNote").textContent = "※ 버스 노선 경로는 샘플 UI입니다. TAGO 키 연동 시 실제 정류장·실시간 위치로 표시됩니다.";
+      document.getElementById("lineFootNote").textContent = "※ 버스 노선은 샘플입니다. TAGO '버스노선정보'+'버스위치정보' 서비스 추가 승인 시 실제 정류장·실시간 위치로 표시됩니다.";
       renderLineStops(stops);
     }
 
