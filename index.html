@@ -1162,7 +1162,7 @@
           kind: place.kind, name: place.name, meta: place.meta || "", distance: place.distance || 0,
           addr: place.addr || "", target: place.target || "detail", tags: place.tags || [], placeUrl: place.placeUrl || "",
           lat: place.lat, lng: place.lng,
-          to: place.to || "", stopName: place.stopName, citycode: place.citycode, nodeid: place.nodeid, nodeno: place.nodeno
+          to: place.to || "", stopName: place.stopName, citycode: place.citycode, nodeid: place.nodeid, nodeno: place.nodeno, arsId: place.arsId
         });
       }
       saveFav();
@@ -1177,7 +1177,7 @@
       const sub = currentMode === "subway";
       return { kind: sub ? "subway" : "bus", name: p.name, meta: p.meta || (sub ? "지하철역" : "버스정류장"),
                distance: p.distance || 0, addr: p.addr || "", target: "transit", tags: p.tags || [],
-               citycode: p.citycode, nodeid: p.nodeid, nodeno: p.nodeno };
+               citycode: p.citycode, nodeid: p.nodeid, nodeno: p.nodeno, arsId: p.arsId };
     }
     // 노선(버스 번호 / 지하철 호선)+방면 → 즐겨찾기 객체
     function routeFav(no, to) {
@@ -1189,7 +1189,7 @@
       return { kind: sub ? "subwayline" : "busroute", name: label + dir, to: to || "", stopName: s.name || "",
                meta: (to ? to + " · " : "") + (s.name ? s.name + " " + stopWord : (sub ? "지하철 노선" : "버스 노선")),
                distance: s.distance || 0, addr: s.addr || "", target: "transit",
-               citycode: s.citycode, nodeid: s.nodeid, nodeno: s.nodeno };
+               citycode: s.citycode, nodeid: s.nodeid, nodeno: s.nodeno, arsId: s.arsId };
     }
     // '어디쯤 오는지' 시각화: 정류장/역(🚏)까지 차량(🚌/🚇)이 몇 정거장 전인지
     function stopsAway(prev) {
@@ -1239,7 +1239,7 @@
       return openDetail(p);
     }
     function reStop(p) {
-      return { name: p.stopName || p.meta, citycode: p.citycode, nodeid: p.nodeid, nodeno: p.nodeno,
+      return { name: p.stopName || p.meta, citycode: p.citycode, nodeid: p.nodeid, nodeno: p.nodeno, arsId: p.arsId,
                distance: p.distance, addr: p.addr, tags: [] };
     }
     function openDetail(place) {
@@ -1292,13 +1292,22 @@
       currentBus = place; currentMode = "bus";
       document.getElementById("busName").textContent = place.name || "버스정류장";
       document.getElementById("busNo").textContent =
+        place.arsId ? ("정류소 번호 " + place.arsId) :
         place.nodeno ? ("정류소 번호 " + place.nodeno) :
         place.nodeid ? ("정류소 ID " + place.nodeid) : (place.addr || "정류소 정보");
       document.getElementById("busFootNote").textContent = "🚌 행을 누르면 노선에서 어디쯤 오는지 보여요 · 하트=그 노선만 즐겨찾기";
       show("bus");
       syncBusHeart();
       const rows = document.getElementById("busRows");
-      if (place.citycode && place.nodeid && CONFIG.DATA_GO_KR_KEY && CONFIG.PROXY) {
+      const hasKey = CONFIG.DATA_GO_KR_KEY && CONFIG.PROXY;
+      if (place.arsId && hasKey) {                 // 서울 버스 정류소
+        rows.innerHTML = '<p class="meta">실시간 도착정보 불러오는 중…</p>';
+        try {
+          const arrs = await fetchSeoulArrivals(place.arsId);
+          if (arrs.length) renderArrivalsMock(arrs);
+          else rows.innerHTML = '<p class="meta">지금 도착 예정 버스가 없어요 (배차 간격·막차 등)</p>';
+        } catch (e) { console.warn("[존급] 서울 도착 실패:", e); renderArrivalsMock(buses); }
+      } else if (place.citycode && place.nodeid && hasKey) {   // TAGO(전국) 정류소
         rows.innerHTML = '<p class="meta">실시간 도착정보 불러오는 중…</p>';
         try {
           const arrs = await fetchBusArrivals(place.citycode, place.nodeid);
@@ -1306,7 +1315,7 @@
           else rows.innerHTML = '<p class="meta">지금 도착 예정 버스가 없어요 (배차 간격·막차 등)</p>';
         } catch (e) { console.warn("[존급] 도착정보 실패:", e); renderArrivalsMock(buses); }
       } else {
-        renderArrivalsMock(buses); // 정보 없는 정류소(서울 등) → 샘플
+        renderArrivalsMock(buses); // 키 없음 → 샘플
       }
     }
     // 지하철 상세: 역명/호선 + 방면·어디쯤·도착. 서울 실시간도착 API(있으면 실데이터, 없으면 샘플)
@@ -1543,8 +1552,8 @@
         const dir = (r.express ? '<span class="exp">급행</span> ' : "") + dirName;
         // 도착줄: 실제 '분'이 있을 때만 'N분 후', 없으면 도착 메시지(전역 출발 등) 그대로
         const eta = r.min ? `<span class="dist">${r.min}분</span> 후 도착` : (r.posMsg || "곧 도착");
-        // 위치줄: 지하철=열차 현재 역(arvlMsg3), 버스=정거장수 시각화
-        const pos = sub ? `${veh} ${r.cur ? r.cur + " 부근" : (r.posMsg || "운행 중")}` : stopsAway(r.prev);
+        // 위치줄: 도착메시지(posMsg) 있으면 우선(서울버스 arrmsg1·지하철 arvlMsg2), 없으면 지하철=현재역/버스=정거장수
+        const pos = r.posMsg ? `${veh} ${r.posMsg}` : (sub ? `${veh} ${r.cur ? r.cur + " 부근" : "운행 중"}` : stopsAway(r.prev));
         return `
         <div class="bus-row">
           <div class="route-no" style="background:${lineColor(r.no)}">${r.no}</div>
@@ -1921,17 +1930,26 @@
         collected.push(place);
       };
       tasks.forEach(t => {
-        // 버스: 공공데이터 TAGO 정류소(프록시 경유) — 전국 실제 정류장
+        // 버스: TAGO(전국) 정류소 → 없으면(서울 등) 서울 버스 API로 폴백
         if (t.bus) {
-          fetchBusStops(center.getLat(), center.getLng())
-            .then(stops => {
-              (stops || []).forEach(s => addPin({
-                kind: "bus", name: s.name, distance: Math.round(haversine(center.getLat(), center.getLng(), s.lat, s.lng)),
-                meta: "버스정류장", tags: [], target: "bus", addr: "", nodeid: s.nodeid, nodeno: s.nodeno, citycode: s.citycode
+          const clat = center.getLat(), clng = center.getLng();
+          fetchBusStops(clat, clng)
+            .then(async stops => {
+              if (stops && stops.length) {
+                stops.forEach(s => addPin({
+                  kind: "bus", name: s.name, distance: Math.round(haversine(clat, clng, s.lat, s.lng)),
+                  meta: "버스정류장", tags: [], target: "bus", addr: "", nodeid: s.nodeid, nodeno: s.nodeno, citycode: s.citycode
+                }, s.lat, s.lng));
+                return;
+              }
+              // TAGO 0건 → 서울 버스 정류소 시도
+              const seoul = await fetchSeoulBusStops(clat, clng);
+              seoul.forEach(s => addPin({
+                kind: "bus", name: s.name, distance: s.dist || Math.round(haversine(clat, clng, s.lat, s.lng)),
+                meta: "버스정류장", tags: [], target: "bus", addr: "", arsId: s.arsId, seoul: true
               }, s.lat, s.lng));
-              // 서울 등 TAGO 미수록 지역 안내 (버스 필터일 때만)
-              if (activeFilter === "bus" && (!stops || !stops.length)) {
-                mapStatus("이 지역은 버스정류소 데이터가 없어요 (TAGO 미수록·서울 등). 지도를 옮겨보세요", "err");
+              if (activeFilter === "bus" && !seoul.length) {
+                mapStatus("이 지역은 버스정류소 데이터가 없어요. 지도를 옮겨보세요", "err");
                 setTimeout(() => mapStatus(null), 4000);
               }
             })
@@ -2004,6 +2022,34 @@
         no: a.routeno, min: Math.max(1, Math.round((Number(a.arrtime) || 0) / 60)),
         prev: Number(a.arrprevstationcnt) || 0, tp: a.routetp || ""
       })).sort((x, y) => x.min - y.min);
+    }
+
+    // 서울 버스 — 좌표기반 근접 정류소 (TAGO 미수록 서울 구간 폴백, 프록시 경유)
+    async function fetchSeoulBusStops(lat, lng) {
+      if (!CONFIG.DATA_GO_KR_KEY || !CONFIG.PROXY) return [];
+      try {
+        const url = `http://ws.bus.go.kr/api/rest/stationinfo/getStationByPos?serviceKey=${CONFIG.DATA_GO_KR_KEY}&tmX=${lng}&tmY=${lat}&radius=500&resultType=json`;
+        const res = await fetch(CONFIG.PROXY + url);
+        const rows = (await res.json())?.msgBody?.itemList || [];
+        return rows.map(r => ({ name: r.stationNm, lat: Number(r.gpsY), lng: Number(r.gpsX), arsId: r.arsId, dist: Number(r.dist) || 0 }))
+                   .filter(s => s.lat && s.lng);
+      } catch (e) { console.warn("[존급] 서울 버스 정류소 실패:", e); return []; }
+    }
+    // 서울 버스 — 정류소(arsId)별 도착(방면·도착메시지·혼잡도) 실데이터
+    const SEOUL_CONGEST = { "3": ["여유", "low"], "4": ["보통", "mid"], "5": ["혼잡", "hot"], "6": ["혼잡", "hot"] };
+    async function fetchSeoulArrivals(arsId) {
+      if (!CONFIG.DATA_GO_KR_KEY || !CONFIG.PROXY) return [];
+      try {
+        const url = `http://ws.bus.go.kr/api/rest/stationinfo/getStationByUid?serviceKey=${CONFIG.DATA_GO_KR_KEY}&arsId=${arsId}&resultType=json`;
+        const res = await fetch(CONFIG.PROXY + url);
+        const rows = (await res.json())?.msgBody?.itemList || [];
+        return rows.map(r => {
+          const sec = Number(r.traTime1) || 0;
+          const [level, cls] = SEOUL_CONGEST[String(r.congestion1)] || ["", "mid"];
+          return { no: r.rtNm, to: r.adirection || "", min: sec > 0 ? Math.max(1, Math.round(sec / 60)) : 0,
+                   posMsg: r.arrmsg1 || "", level: level || "정보없음", cls, prev: 0 };
+        });
+      } catch (e) { console.warn("[존급] 서울 버스 도착 실패:", e); return []; }
     }
 
     /* =========================================================
