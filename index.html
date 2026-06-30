@@ -1467,7 +1467,8 @@
 
     function renderMap() {
       document.querySelectorAll(".map .pin[data-kind]").forEach(pin => {
-        pin.classList.toggle("dim", activeFilter !== "all" && pin.dataset.kind !== activeFilter);
+        // 선택 카테고리만 표시(전체면 다), 나머지는 숨김 — 흐리기만 하지 않고 완전 필터
+        pin.style.display = (activeFilter === "all" || pin.dataset.kind === activeFilter) ? "" : "none";
       });
       const first = visiblePlaces()[0] || places[0];
       if (!first) return;
@@ -1830,7 +1831,7 @@
         let idleTimer;
         window.kakao.maps.event.addListener(kmap.map, "idle", () => {
           clearTimeout(idleTimer);
-          idleTimer = setTimeout(loadKakaoPlaces, 450);
+          idleTimer = setTimeout(loadKakaoPlaces, 700);   // 지도 멈춘 뒤에만 재검색(과호출 방지)
         });
       } catch (e) {
         console.warn("[존급] 카카오맵 미사용 → mock 지도:", e);
@@ -1855,9 +1856,11 @@
       return 2 * R * Math.asin(Math.sqrt(a));
     }
 
+    let searchGen = 0;   // 검색 세대 토큰 — 필터 바뀌면 이전 비동기 결과 무시(경합 방지)
     function loadKakaoPlaces() {
       if (!kmap.ready) return;
       clearOverlays();
+      const myGen = ++searchGen;
       const ps = new window.kakao.maps.services.Places();
       const center = kmap.map.getCenter();
       // 보이는 화면 영역을 반경으로 환산 → 지도를 움직이면 그 지역이 검색됨(카카오 최대 20km)
@@ -1893,30 +1896,46 @@
       const seen = new Set();
       // 실행할 검색 작업 목록 (키워드 1개 = 작업 1개). print는 키워드가 여러 개라 작업도 여러 개
       const tasks = [];
+      const allMode = activeFilter === "all";
+      const pushItem = (kind, item, q) => {
+        if (typeof item === "string") tasks.push({ kind, kw: item, include: q.include, exclude: q.exclude });
+        else if (item.cat) tasks.push({ kind, cat: item.cat, tag: item.tag });          // 카테고리 기반(예: 지하철역)
+        else tasks.push({ kind, kw: item.kw, tag: item.tag, include: q.include, exclude: q.exclude });
+      };
       kinds.forEach(kind => {
         if (kind === "bus" && CONFIG.DATA_GO_KR_KEY && CONFIG.PROXY) { tasks.push({ kind, bus: true }); return; }
         const q = queries[kind];
-        if (q.cat) tasks.push({ kind, cat: q.cat });
-        else (q.kws || [q.kw]).forEach(item => {
-          if (typeof item === "string") tasks.push({ kind, kw: item, include: q.include, exclude: q.exclude });
-          else if (item.cat) tasks.push({ kind, cat: item.cat, tag: item.tag });          // 카테고리 기반(예: 지하철역)
-          else tasks.push({ kind, kw: item.kw, tag: item.tag, include: q.include, exclude: q.exclude });
-        });
-        // 화장실: 카카오 키워드 + 공공 개방화장실 표준데이터(지오코딩) 를 동시 레이어로
-        if (kind === "toilet" && CONFIG.DATA_GO_KR_KEY && CONFIG.PROXY && CONFIG.TOILET_DATA_URL) {
+        if (q.cat) { tasks.push({ kind, cat: q.cat }); return; }
+        const items = q.kws || [q.kw];
+        // 전체: 카테고리당 대표 1개만(빠른 개요). 단일 필터: 전체 키워드(정밀)
+        (allMode ? items.slice(0, 1) : items).forEach(item => pushItem(kind, item, q));
+        // 화장실: 공공 개방화장실 표준데이터 레이어(단일 필터일 때만)
+        if (kind === "toilet" && !allMode && CONFIG.DATA_GO_KR_KEY && CONFIG.PROXY && CONFIG.TOILET_DATA_URL) {
           tasks.push({ kind, openToilet: true });
         }
       });
       let pending = tasks.length;
-      const done = () => {
-        if (--pending > 0) return;
-        if (collected.length) {
-          places = collected.sort((a,b)=>a.distance-b.distance);
+      // 결과가 들어오는 대로 점진적으로 그려줌(기다렸다 한 번에 X) — 250ms throttle
+      let liveT = null;
+      const liveRender = () => {
+        if (liveT || myGen !== searchGen) return;
+        liveT = setTimeout(() => {
+          liveT = null;
+          if (myGen !== searchGen) return;
+          places = collected.slice().sort((a, b) => a.distance - b.distance);
           renderList(); renderMap();
-        }
+        }, 250);
+      };
+      const done = () => {
+        if (myGen !== searchGen) return;   // 더 새로운 검색이 시작됐으면 무시
+        if (--pending > 0) return;
+        // 결과를 항상 반영(0건이어도) → 선택 카테고리만 정확히 표시
+        places = collected.sort((a, b) => a.distance - b.distance);
+        renderList(); renderMap();
       };
       // 클릭 가능한 핀 추가 + collected 적재 (카카오/TAGO 공용, 좌표 중복 제거)
       const addPin = (place, lat, lng) => {
+        if (myGen !== searchGen) return;   // 오래된 검색 결과면 핀 안 찍음(경합 방지)
         const dk = place.kind + "@" + Number(lat).toFixed(5) + "," + Number(lng).toFixed(5);
         if (seen.has(dk)) return;       // 다중 키워드로 같은 곳이 중복 검색돼도 핀 1개만
         seen.add(dk);
@@ -1928,6 +1947,7 @@
           map: kmap.map, position: new window.kakao.maps.LatLng(lat, lng), content: elPin, yAnchor: 1, clickable: true
         }));
         collected.push(place);
+        liveRender();   // 들어오는 대로 리스트/카드 점진 갱신
       };
       tasks.forEach(t => {
         // 버스: TAGO(전국) 정류소 → 없으면(서울 등) 서울 버스 API로 폴백
