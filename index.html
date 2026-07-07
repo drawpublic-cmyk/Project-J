@@ -672,7 +672,7 @@
     .line-stop { display: grid; grid-template-columns: 26px 1fr; gap: 12px; align-items: center; }
     .line-node { position: relative; height: 56px; display: flex; align-items: center; justify-content: center; }
     .end-badge { display: inline-block; font-size: 10px; font-weight: 900; color: #fff; background: var(--charcoal); padding: 2px 7px; border-radius: 6px; margin-right: 6px; vertical-align: middle; }
-    .line-node::before { content: ""; position: absolute; top: 0; bottom: 0; width: 4px; background: var(--lc, var(--line)); }
+    .line-node::before { content: ""; position: absolute; top: 0; bottom: 0; width: 4px; background: var(--seg, var(--lc, var(--line))); }
     .line-stop:first-child .line-node::before { top: 50%; }
     .line-stop:last-child .line-node::before { bottom: 50%; }
     .line-dot { width: 12px; height: 12px; border-radius: 50%; background: var(--lc, #cdd2cf); border: 2px solid #fff; z-index: 1; }
@@ -1857,7 +1857,7 @@
       stopLinePoll(); lineState = null;   // 새 노선 진입 시 이전 폴링 중단
       const sub = mode === "subway";
       const veh = sub ? "🚇" : "🚌", stopW = sub ? "역" : "정류장", unit = sub ? "역" : "정거장";
-      document.getElementById("lineTitle").textContent = sub ? no : no + "번";
+      document.getElementById("lineTitle").textContent = sub ? no : (/\d$/.test(no) ? no + "번" : no);   // '9200'→9200번, '9200인천'→그대로
 
       // ⓪ 서울 버스: 노선 전체 정류소 + 실시간 버스 위치 (routeid 있을 때)
       if (!sub && routeid && CONFIG.DATA_GO_KR_KEY && CONFIG.PROXY) {
@@ -1869,10 +1869,10 @@
           const hereArsId = currentBus && currentBus.arsId;
           const ordIndex = new Map(); data.stops.forEach((s, i) => ordIndex.set(s.ord, i));
           document.getElementById("lineSub").textContent = `${to ? to + " 방면 · " : ""}실시간 ${data.buses.length}대 운행 중`;
-          document.getElementById("lineFootNote").textContent = "🚌 서울 버스 실시간 — 15초마다 갱신되며 버스가 정류소 사이를 부드럽게 이동합니다. (●=정류소, 🚌=버스)";
+          document.getElementById("lineFootNote").textContent = "🚌 서울 버스 실시간 · 15초 갱신 · 구간색=속도(🟢원활 🟠서행 🔴지체)";
           lineState = { mode: "seoulbus", routeid, to, hereArsId, ordIndex, color: "#16A34A", markers: {} };
           renderLineStops(buildSeoulBusStops(data.stops, hereArsId), lineState.color);
-          requestAnimationFrame(() => positionBuses(data.buses));   // 레이아웃 후 버스 배치
+          requestAnimationFrame(() => { positionBuses(data.buses); updateCongestion(data.stops); });   // 레이아웃 후 버스 배치 + 구간색
           startSeoulBusPoll();
           return;
         }
@@ -1928,7 +1928,15 @@
         return;
       }
 
-      // ② 샘플(버스/키없음): 전체 12칸 노선 + 차량 위치 시각화
+      // 버스인데 노선 상세를 못 주는 경우(경기·지방 TAGO): 가짜 정류장 대신 안내
+      if (!sub) {
+        document.getElementById("lineSub").textContent = `${no}번 · 노선 상세 미지원`;
+        document.getElementById("lineFootNote").textContent = "";
+        renderLineStops([{ cls: "here", label: "이 버스는 노선 전체보기를 지원하지 않아요", tag: "경기·지방 버스는 노선정보 API 미승인. 서울 버스는 번호 검색 시 전체 노선이 나와요." }]);
+        return;
+      }
+
+      // ② 샘플(지하철 키없음): 전체 12칸 노선 + 차량 위치 시각화
       document.getElementById("lineSub").textContent =
         (to ? to + " 방면 · " : "") + (prev ? `${veh} ${prev}${unit} 전` : `${veh} 곧 도착`);
       const TOTAL = 12, HERE = 8;
@@ -2280,7 +2288,7 @@
         const url = `http://ws.bus.go.kr/api/rest/arrive/getArrInfoByRouteAll?serviceKey=${CONFIG.DATA_GO_KR_KEY}&busRouteId=${busRouteId}&resultType=json`;
         const rows = (await (await fetch(CONFIG.PROXY + url)).json())?.msgBody?.itemList || [];
         if (!rows.length) return null;
-        const stops = rows.map(r => ({ ord: Number(r.staOrd), name: r.stNm, arsId: r.arsId })).sort((a, b) => a.ord - b.ord);
+        const stops = rows.map(r => ({ ord: Number(r.staOrd), name: r.stNm, arsId: r.arsId, spd: Number(r.traSpd1) || 0 })).sort((a, b) => a.ord - b.ord);
         const busMap = new Map();   // 차량별 현재 위치(sectOrd1) — 중복 제거
         rows.forEach(r => { const v = r.vehId1, o = Number(r.sectOrd1); if (v && v !== "0" && o) busMap.set(v, { id: v, ord: o, msg: r.arrmsg1 || "운행중" }); });
         return { stops, buses: [...busMap.values()], routeName: rows[0].rtNm };
@@ -2290,6 +2298,23 @@
       return stops.map(s => {
         const here = s.arsId && s.arsId === hereArsId;
         return { icon: null, cls: here ? "here" : "", label: s.name + (here ? " (승차·여기)" : ""), tag: "" };
+      });
+    }
+    // 구간 속도 → 막힘 색 (버스 traSpd1 km/h 기준)
+    function spdColor(spd) {
+      if (!spd || spd <= 0 || spd > 120) return "";       // 데이터 없음/이상치 → 기본 색
+      if (spd < 10) return "#ef4444";                      // 지체(빨강)
+      if (spd < 18) return "#f59e0b";                      // 서행(주황)
+      return "#16a34a";                                    // 원활(초록)
+    }
+    // 노선 각 구간(정류소 노드) 레일 색을 속도로 칠하기 (폴링마다 갱신)
+    function updateCongestion(stops) {
+      if (!lineState || !lineState.ordIndex) return;
+      const rows = [...document.querySelectorAll("#lineStops .line-stop")];
+      stops.forEach(s => {
+        const idx = lineState.ordIndex.get(s.ord); if (idx == null) return;
+        const node = rows[idx] && rows[idx].querySelector(".line-node");
+        if (node) node.style.setProperty("--seg", spdColor(s.spd));
       });
     }
     // 버스 마커를 정류소 사이 위치에 배치 — CSS top 트랜지션(15s)으로 부드럽게 이동
@@ -2322,6 +2347,7 @@
         if (!data) return;
         document.getElementById("lineSub").textContent = `${lineState.to || ""} · 실시간 ${data.buses.length}대 운행 중`;
         positionBuses(data.buses);   // 정류소 목록은 그대로, 버스 마커만 갱신 → 미끄러지듯 이동
+        updateCongestion(data.stops);   // 구간 속도색 갱신
       }, 15000);   // 서울 버스 15초 갱신
     }
 
@@ -2469,27 +2495,48 @@
         e.stopPropagation(); recent.splice(Number(b.dataset.rm), 1); saveRecent(); renderRecent();
       }));
     }
+    // 서울 버스 노선번호 검색
+    async function fetchBusRoutes(term) {
+      if (!CONFIG.DATA_GO_KR_KEY || !CONFIG.PROXY) return [];
+      try {
+        const url = `http://ws.bus.go.kr/api/rest/busRouteInfo/getBusRouteList?serviceKey=${CONFIG.DATA_GO_KR_KEY}&strSrch=${encodeURIComponent(term)}&resultType=json`;
+        const rows = (await (await fetch(CONFIG.PROXY + url)).json())?.msgBody?.itemList || [];
+        return rows.slice(0, 12).map(r => ({ id: r.busRouteId, name: r.busRouteNm, st: r.stStationNm || "", ed: r.edStationNm || "" }));
+      } catch (e) { console.warn("[존급] 버스노선 검색 실패:", e); return []; }
+    }
+    function openBusRoute(busRouteId, name) {
+      currentBus = { name: name + " 노선", arsId: null }; currentMode = "bus";
+      openLine(name, "", 0, "bus", "", busRouteId);
+    }
+    function renderBusRouteResults(routes) {
+      const box = document.getElementById("busRouteResults"); if (!box) return;
+      if (!routes.length) { box.innerHTML = ""; return; }
+      box.innerHTML = '<h3 style="margin:2px 0 8px">🚌 버스 노선</h3>' + routes.map((r, i) =>
+        `<div class="list-item" data-ri="${i}" style="cursor:pointer"><div class="badge bus">${iconSvg("bus")}</div><div class="li-main"><div class="item-name">${r.name}</div><div class="meta">${r.st} → ${r.ed}</div></div><b>›</b></div>`
+      ).join("") + '<h3 style="margin:16px 0 8px">📍 장소</h3>';
+      box.querySelectorAll("[data-ri]").forEach(el => el.addEventListener("click", () => { const r = routes[+el.dataset.ri]; openBusRoute(r.id, r.name); }));
+    }
     async function runSearch(term) {
       term = (term || "").trim();
       const c = document.getElementById("searchResults");
       if (!term) { c.innerHTML = '<p class="meta">검색어를 입력하세요.</p>'; return; }
-      try { await loadKakaoSdk(); } catch (e) { c.innerHTML = '<p class="meta">검색에는 카카오맵 키가 필요해요(현재 미연동).</p>'; return; }
       addRecent(term);
-      c.innerHTML = '<p class="meta">검색 중…</p>';
+      c.innerHTML = '<div id="busRouteResults"></div><div id="placeResults"><p class="meta">검색 중…</p></div>';
+      renderBusRouteResults(await fetchBusRoutes(term));   // 버스 노선 먼저
+      const pr = document.getElementById("placeResults");
+      try { await loadKakaoSdk(); } catch (e) { pr.innerHTML = '<p class="meta">장소 검색은 카카오맵 키가 필요해요.</p>'; return; }
       const ps = new window.kakao.maps.services.Places();
       ps.keywordSearch(term, (data, status) => {
-        if (status !== window.kakao.maps.services.Status.OK || !data.length) {
-          c.innerHTML = '<p class="meta">검색 결과가 없어요.</p>'; return;
-        }
+        if (status !== window.kakao.maps.services.Status.OK || !data.length) { pr.innerHTML = '<p class="meta">장소 결과가 없어요.</p>'; return; }
         const list = data.slice(0, 10);
-        c.innerHTML = list.map(d => `
+        pr.innerHTML = list.map(d => `
           <div class="list-item" style="cursor:pointer">
             <div class="badge search">${iconSvg("location")}</div>
             <div class="li-main"><div class="item-name">${d.place_name}</div><div class="meta">${d.road_address_name || d.address_name || ""}</div></div><b>›</b>
           </div>`).join("");
-        c.querySelectorAll(".list-item").forEach((el, i) => el.addEventListener("click", () => {
+        pr.querySelectorAll(".list-item").forEach((el, i) => el.addEventListener("click", () => {
           const d = list[i], center = { lat: Number(d.y), lng: Number(d.x) };
-          if (!moveMapTo(center)) startMap(center);   // 지도 아직이면 그 위치로 초기화
+          if (!moveMapTo(center)) startMap(center);
           show("map");
         }));
       });
