@@ -1140,6 +1140,9 @@
       DEFAULT_CENTER: { lat: 37.5547, lng: 126.9707 }, // 서울역
       RADIUS: 500
     };
+    // 프록시 경유 URL — 원본 URL을 통째로 인코딩해서 붙임(?가 두 번 겹쳐 깨지는 문제 방지).
+    // 로컬 proxy.js / Vercel /api/proxy 둘 다 디코드해서 처리.
+    const px = (u) => CONFIG.PROXY + encodeURIComponent(u);
 
     /* ---------- 아이콘 (인라인 SVG line set, currentColor 상속) ---------- */
     // Map Icon Set 기준: 볼드 채움(흰 글리프) 스타일. 흰색은 currentColor(핀/뱃지=흰색) 상속
@@ -1410,7 +1413,7 @@
       const tryFetch = async (name) => {
         if (!name) return [];
         const url = `http://swopenapi.seoul.go.kr/api/subway/${CONFIG.SEOUL_SUBWAY_KEY}/json/realtimeStationArrival/0/12/${encodeURIComponent(name)}`;
-        const res = await fetch(CONFIG.PROXY + url);
+        const res = await fetch(px(url));
         const json = await res.json();
         return (json && json.realtimeArrivalList) || [];
       };
@@ -1707,7 +1710,7 @@
       if (!CONFIG.SEOUL_SUBWAY_KEY || !CONFIG.PROXY) return [];
       try {
         const url = `http://swopenapi.seoul.go.kr/api/subway/${CONFIG.SEOUL_SUBWAY_KEY}/json/realtimePosition/0/300/${encodeURIComponent(lineName)}`;
-        const res = await fetch(CONFIG.PROXY + url);
+        const res = await fetch(px(url));
         const json = await res.json();
         return (json && json.realtimePositionList) || [];
       } catch (e) { console.warn("[존급] 열차위치 실패:", e); return []; }
@@ -1733,7 +1736,7 @@
       if (!CONFIG.SEOUL_SUBWAY_KEY || !CONFIG.PROXY) return {};
       try {
         const url = `http://openapi.seoul.go.kr:8088/${CONFIG.SEOUL_SUBWAY_KEY}/json/subwayStationMaster/1/800/`;
-        const res = await fetch(CONFIG.PROXY + url);
+        const res = await fetch(px(url));
         const rows = (await res.json())?.subwayStationMaster?.row || [];
         const byRoute = {};
         rows.forEach(r => { (byRoute[r.ROUTE] = byRoute[r.ROUTE] || []).push({ nm: r.BLDN_NM, id: r.BLDN_ID, lat: Number(r.LAT), lng: Number(r.LOT) }); });
@@ -2231,7 +2234,7 @@
     async function fetchBusStops(lat, lng) {
       const base = "http://apis.data.go.kr/1613000/BusSttnInfoInqireService/getCrdntPrxmtSttnList";
       const qs = new URLSearchParams({ serviceKey: CONFIG.DATA_GO_KR_KEY, gpsLati: lat, gpsLong: lng, numOfRows: 30, pageNo: 1, _type: "json" });
-      const res = await fetch(CONFIG.PROXY + base + "?" + qs.toString());
+      const res = await fetch(px(base + "?" + qs.toString()));
       const json = await res.json();
       const items = json && json.response && json.response.body && json.response.body.items;
       if (!items || !items.item) return [];
@@ -2244,7 +2247,7 @@
     async function fetchBusArrivals(cityCode, nodeId) {
       const base = "http://apis.data.go.kr/1613000/ArvlInfoInqireService/getSttnAcctoArvlPrearngeInfoList";
       const qs = new URLSearchParams({ serviceKey: CONFIG.DATA_GO_KR_KEY, cityCode, nodeId, numOfRows: 20, pageNo: 1, _type: "json" });
-      const res = await fetch(CONFIG.PROXY + base + "?" + qs.toString());
+      const res = await fetch(px(base + "?" + qs.toString()));
       const json = await res.json();
       const items = json && json.response && json.response.body && json.response.body.items;
       if (!items || !items.item) return [];
@@ -2260,7 +2263,7 @@
       if (!CONFIG.DATA_GO_KR_KEY || !CONFIG.PROXY) return [];
       try {
         const url = `http://ws.bus.go.kr/api/rest/stationinfo/getStationByPos?serviceKey=${CONFIG.DATA_GO_KR_KEY}&tmX=${lng}&tmY=${lat}&radius=500&resultType=json`;
-        const res = await fetch(CONFIG.PROXY + url);
+        const res = await fetch(px(url));
         const rows = (await res.json())?.msgBody?.itemList || [];
         return rows.map(r => ({ name: r.stationNm, lat: Number(r.gpsY), lng: Number(r.gpsX), arsId: r.arsId, dist: Number(r.dist) || 0 }))
                    .filter(s => s.lat && s.lng);
@@ -2272,7 +2275,7 @@
       if (!CONFIG.DATA_GO_KR_KEY || !CONFIG.PROXY) return [];
       try {
         const url = `http://ws.bus.go.kr/api/rest/stationinfo/getStationByUid?serviceKey=${CONFIG.DATA_GO_KR_KEY}&arsId=${arsId}&resultType=json`;
-        const res = await fetch(CONFIG.PROXY + url);
+        const res = await fetch(px(url));
         const rows = (await res.json())?.msgBody?.itemList || [];
         return rows.map(r => {
           const sec = Number(r.traTime1) || 0;
@@ -2287,7 +2290,7 @@
       if (!CONFIG.DATA_GO_KR_KEY || !CONFIG.PROXY || !busRouteId) return null;
       try {
         const url = `http://ws.bus.go.kr/api/rest/arrive/getArrInfoByRouteAll?serviceKey=${CONFIG.DATA_GO_KR_KEY}&busRouteId=${busRouteId}&resultType=json`;
-        const rows = (await (await fetch(CONFIG.PROXY + url)).json())?.msgBody?.itemList || [];
+        const rows = (await (await fetch(px(url))).json())?.msgBody?.itemList || [];
         if (!rows.length) return null;
         const stops = rows.map(r => ({ ord: Number(r.staOrd), name: r.stNm, arsId: r.arsId, spd: Number(r.traSpd1) || 0 })).sort((a, b) => a.ord - b.ord);
         const busMap = new Map();   // 차량별 현재 위치(sectOrd1) — 중복 제거
@@ -2357,7 +2360,7 @@
        ========================================================= */
     function dataUrl(path, params) {
       const qs = new URLSearchParams({ serviceKey: CONFIG.DATA_GO_KR_KEY, _type: "json", ...params }).toString();
-      return `${CONFIG.PROXY}${path}?${qs}`;
+      return px(`${path}?${qs}`);
     }
 
     // 서울 버스도착정보(혼잡도) — 정류장 arsId 기준
@@ -2384,7 +2387,7 @@
       if (!CONFIG.DATA_GO_KR_KEY || !CONFIG.PROXY || !CONFIG.TOILET_DATA_URL) return [];
       try {
         const qs = new URLSearchParams({ serviceKey: CONFIG.DATA_GO_KR_KEY, page: 1, perPage }).toString();
-        const res = await fetch(CONFIG.PROXY + CONFIG.TOILET_DATA_URL + "?" + qs);
+        const res = await fetch(px(CONFIG.TOILET_DATA_URL + "?" + qs));
         const json = await res.json();
         return json?.data || json?.response?.body?.items || [];   // odcloud / 표준 응답 양쪽 대응
       } catch (e) { console.warn("[존급] 화장실 표준데이터 실패:", e); return []; }
@@ -2501,7 +2504,7 @@
       if (!CONFIG.DATA_GO_KR_KEY || !CONFIG.PROXY) return [];
       try {
         const url = `http://ws.bus.go.kr/api/rest/busRouteInfo/getBusRouteList?serviceKey=${CONFIG.DATA_GO_KR_KEY}&strSrch=${encodeURIComponent(term)}&resultType=json`;
-        const rows = (await (await fetch(CONFIG.PROXY + url)).json())?.msgBody?.itemList || [];
+        const rows = (await (await fetch(px(url))).json())?.msgBody?.itemList || [];
         return rows.slice(0, 12).map(r => ({ id: r.busRouteId, name: r.busRouteNm, st: r.stStationNm || "", ed: r.edStationNm || "" }));
       } catch (e) { console.warn("[존급] 버스노선 검색 실패:", e); return []; }
     }

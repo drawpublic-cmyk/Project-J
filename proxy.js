@@ -21,8 +21,9 @@ http.createServer((req, res) => {
   res.setHeader("Access-Control-Allow-Headers", "*");
   if (req.method === "OPTIONS") { res.writeHead(204); return res.end(); }
 
-  // 프록시 뒤에 붙은 원본 URL 추출 (맨 앞 '/' 제거)
-  const target = req.url.replace(/^\//, "");
+  // 프록시 뒤에 붙은 원본 URL 추출 (맨 앞 '/' 제거 + 인코딩됐으면 디코드)
+  let target = req.url.replace(/^\//, "");
+  try { if (/%[0-9A-Fa-f]{2}/.test(target)) target = decodeURIComponent(target); } catch {}
   if (!/^https?:\/\//.test(target)) {
     res.writeHead(400, { "Content-Type": "text/plain; charset=utf-8" });
     return res.end("사용법: http://localhost:8787/<원본 API URL 전체>");
