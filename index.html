@@ -1143,6 +1143,9 @@
     // 프록시 경유 URL — 원본 URL을 통째로 인코딩해서 붙임(?가 두 번 겹쳐 깨지는 문제 방지).
     // 로컬 proxy.js / Vercel /api/proxy 둘 다 디코드해서 처리.
     const px = (u) => CONFIG.PROXY + encodeURIComponent(u);
+    // 간단 TTL 캐시(localStorage) — 정류소 목록 등 잘 안 변하는 데이터 재요청 방지
+    function readCache(key) { try { const o = JSON.parse(localStorage.getItem(key) || "null"); if (o && o.exp > Date.now()) return o.v; } catch (e) {} return null; }
+    function writeCache(key, v, ttl) { try { localStorage.setItem(key, JSON.stringify({ exp: Date.now() + ttl, v })); } catch (e) {} }
 
     /* ---------- 아이콘 (인라인 SVG line set, currentColor 상속) ---------- */
     // Map Icon Set 기준: 볼드 채움(흰 글리프) 스타일. 흰색은 currentColor(핀/뱃지=흰색) 상속
@@ -2167,22 +2170,19 @@
         // 버스: TAGO(전국) 정류소 → 없으면(서울 등) 서울 버스 API로 폴백
         if (t.bus) {
           const clat = center.getLat(), clng = center.getLng();
-          fetchBusStops(clat, clng)
-            .then(async stops => {
-              if (stops && stops.length) {
-                stops.forEach(s => addPin({
-                  kind: "bus", name: s.name, distance: Math.round(haversine(clat, clng, s.lat, s.lng)),
-                  meta: "버스정류장", tags: [], target: "bus", addr: "", nodeid: s.nodeid, nodeno: s.nodeno, citycode: s.citycode
-                }, s.lat, s.lng));
-                return;
-              }
-              // TAGO 0건 → 서울 버스 정류소 시도
-              const seoul = await fetchSeoulBusStops(clat, clng);
-              seoul.forEach(s => addPin({
-                kind: "bus", name: s.name, distance: s.dist || Math.round(haversine(clat, clng, s.lat, s.lng)),
-                meta: "버스정류장", tags: [], target: "bus", addr: "", arsId: s.arsId, seoul: true
-              }, s.lat, s.lng));
-              if (activeFilter === "bus" && !seoul.length) {
+          const ckey = "jongeup_busstops_" + clat.toFixed(3) + "," + clng.toFixed(3);
+          const paint = list => list.forEach(p => addPin(p, p.lat, p.lng));
+          const cached = readCache(ckey);
+          if (cached) { paint(cached); done(); return; }   // 캐시 즉시(1일)
+          // TAGO(전국) + 서울 버스 병렬 호출 → 순차 대기 제거(속도↑). TAGO 있으면 우선, 없으면 서울.
+          Promise.all([fetchBusStops(clat, clng).catch(() => []), fetchSeoulBusStops(clat, clng).catch(() => [])])
+            .then(([tago, seoul]) => {
+              const list = (tago && tago.length)
+                ? tago.map(s => ({ kind: "bus", name: s.name, distance: Math.round(haversine(clat, clng, s.lat, s.lng)), meta: "버스정류장", tags: [], target: "bus", addr: "", lat: s.lat, lng: s.lng, nodeid: s.nodeid, nodeno: s.nodeno, citycode: s.citycode }))
+                : seoul.map(s => ({ kind: "bus", name: s.name, distance: s.dist || Math.round(haversine(clat, clng, s.lat, s.lng)), meta: "버스정류장", tags: [], target: "bus", addr: "", lat: s.lat, lng: s.lng, arsId: s.arsId, seoul: true }));
+              writeCache(ckey, list, 864e5);   // 1일 캐시
+              paint(list);
+              if (activeFilter === "bus" && !list.length) {
                 mapStatus("이 지역은 버스정류소 데이터가 없어요. 지도를 옮겨보세요", "err");
                 setTimeout(() => mapStatus(null), 4000);
               }
