@@ -1127,15 +1127,16 @@
       // 카카오 JS키는 '도메인 제한'이 걸려 등록 도메인 외에선 못 써서 공개본에 폴백으로 둠
       // (반드시 카카오 콘솔 Web 플랫폼에 사용할 도메인을 등록해야 함)
       KAKAO_JS_KEY: (window.JONGEUP_KAKAO_KEY || "486620a76d228ef13b4eefaee60b306a"),
-      // ⚠️ 공공데이터 키/프록시는 공개 금지(도메인 제한 없음) → 로컬 config.local.js 에서만 주입
-      DATA_GO_KR_KEY: (window.JONGEUP_DATAGO_KEY || ""),
-      PROXY: (window.JONGEUP_PROXY || ""),
+      // ⚠️ 공개본에선 실제 키 대신 sentinel 토큰만 노출 → Vercel 프록시(/api/proxy)가 서버에서 실제 키로 치환.
+      // 로컬은 config.local.js 가 실제 키/로컬프록시로 덮어씀.
+      DATA_GO_KR_KEY: (window.JONGEUP_DATAGO_KEY || "__JONGEUP_KEY__"),
+      PROXY: (window.JONGEUP_PROXY || "/api/proxy?url="),
       // 전국공중화장실표준데이터(개방화장실 포함)의 odcloud UDDI '전체 URL'.
       // data.go.kr에서 활용신청하면 계정마다 고유한 /v1/uddi/<uuid> 주소를 받음 → 그걸 그대로 붙여넣기.
       // 2025.02 정책변경으로 이 데이터엔 좌표가 없어 주소를 카카오 지오코더로 변환해 사용함.
       TOILET_DATA_URL: (window.JONGEUP_TOILET_URL || ""),
       // 서울 열린데이터광장 '지하철 실시간 도착정보'(OA-12764) 인증키. 발급 즉시 사용, 'sample'로 테스트 가능. 프록시 필요.
-      SEOUL_SUBWAY_KEY: (window.JONGEUP_SUBWAY_KEY || ""),
+      SEOUL_SUBWAY_KEY: (window.JONGEUP_SUBWAY_KEY || "__JONGEUP_KEY__"),
       DEFAULT_CENTER: { lat: 37.5547, lng: 126.9707 }, // 서울역
       RADIUS: 500
     };
