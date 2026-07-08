@@ -837,11 +837,12 @@
 
     /* 모바일/웹뷰: 목업 틀 제거하고 실제 앱처럼 전체화면 채움 */
     @media (max-width: 520px) {
-      html, body { margin: 0; height: 100%; background: var(--cream); }
+      html, body { margin: 0; height: 100%; background: #fff; }
       .shell { padding: 0; gap: 0; min-height: 100dvh; }
       .phone {
         width: 100vw; height: 100dvh; max-width: none; margin: 0;
         border: 0; border-radius: 0; box-shadow: none;
+        background: #fff;   /* 상태바(시계)·제스처바 안전영역을 흰색으로 채움 → 콘텐츠와 이어짐 */
         /* 안드로이드15+/노치: 시스템바 뒤까지 그려지므로 상·하 안전영역 확보 */
         padding-top: env(safe-area-inset-top);
         padding-bottom: env(safe-area-inset-bottom);
@@ -850,8 +851,6 @@
       .notch { display: none; }    /* 가짜 노치 제거 */
       .status { display: none; }   /* 가짜 상태바(12:30·배터리) 제거 → OS 시계만 남김(시계 중복 해결) */
       .screen { height: 100%; }    /* 상태바 제거분까지 화면 채움 */
-      /* 안전영역(노치/제스처바)은 앱 배경색으로 채워 빈 곳 없이 보이게 */
-      body { background: var(--cream); }
     }
   </style>
 </head>
