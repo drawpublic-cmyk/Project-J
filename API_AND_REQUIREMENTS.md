@@ -1,6 +1,14 @@
 # 존급 프로토타입 검토 메모
 
-## ⚡ 빠른 셋업 (API 키 넣기)
+## ✅ 배포 상태 (2026-07-08)
+- **공개 배포: Vercel** — `https://project-j-phi.vercel.app`
+- **키 보안 완료**: 실키는 프론트에 없음. 클라이언트는 sentinel(`__JONGEUP_KEY__`)로 호출 → **서버리스 프록시 `/api/proxy`가 env 키로 치환** 후 대신 호출.
+  - Vercel env: `DATA_GO_KR_KEY`, `SEOUL_SUBWAY_KEY`
+- **카카오 도메인 등록 완료** (Vercel URL 포함)
+- 아래 "빠른 셋업"은 **로컬 개발 기준**(`config.local.js` + `node proxy.js`). 배포본은 위 프록시가 자동 처리하므로 별도 조치 불필요.
+- ⬜ (선택) `TOILET_DATA_URL` 개방화장실 레이어는 미설정 — 원하면 활용신청 후 주입.
+
+## ⚡ 빠른 셋업 (로컬 개발용)
 
 `index.html` 하단 스크립트의 `CONFIG` 객체만 채우면 됩니다. 비워두면 전부 mock 으로 동작합니다.
 
@@ -38,7 +46,7 @@ cd outputs/jongeup-prototype
 python3 -m http.server 4173   # http://127.0.0.1:4173/
 ```
 
-> 운영 배포 시에는 키를 프론트에 직접 넣지 말고 `proxy.js` 같은 백엔드에서 주입하세요. (아래 "서버/DB가 필요한 지점" 참고)
+> ✅ (완료) 운영 배포 시 키를 프론트에 직접 넣지 않기 — Vercel `api/proxy.js`(서버리스)가 env 키를 서버에서 주입하도록 조치됨.
 
 ---
 

@@ -49,7 +49,8 @@
     .shell {
       min-height: 100vh;
       display: grid;
-      grid-template-columns: minmax(360px, 440px) minmax(360px, 1fr);
+      grid-template-columns: 1fr;   /* 개발 안내패널(.side) 숨김 → 폰 중앙 */
+      justify-items: center;
       gap: 34px;
       align-items: center;
       padding: 36px;
@@ -776,9 +777,9 @@
 
     /* ---------- 우측 설명 패널 ---------- */
     .side {
+      display: none;   /* 개발/디자인 참고 패널 — 프로덕션(웹뷰)에선 숨김. #apiStatus는 DOM에 남아 기능 유지 */
       max-width: 780px;
       align-self: stretch;
-      display: grid;
       align-content: center;
       gap: 18px;
     }

@@ -54,7 +54,11 @@ proxy.js                 공공데이터포털 CORS 우회 프록시 (의존성 
 API_AND_REQUIREMENTS.md  API 후보 · 셋업 · 서버/DB 필요 지점 정리
 ```
 
+## 배포
+- **공개: Vercel** — `https://project-j-phi.vercel.app`
+- 서버리스 프록시 `api/proxy.js`가 키를 서버에서 주입(프론트 무노출) + CORS 우회 → 공개본에서도 지하철/버스 실시간 동작
+- 카카오 JS키는 도메인 제한 → 카카오 콘솔 Web 플랫폼에 배포 도메인 등록 필요
+
 ## 상태
-- 프론트엔드 프로토타입 단계 (mock 데이터 기본)
-- 아이콘은 인라인 SVG 라인 세트, 매장 사진은 회색 placeholder
-- 즐겨찾기는 `localStorage`에 저장
+- 지하철·버스 실시간 연동 완료(서울 실데이터), 즐겨찾기 `localStorage`
+- 로컬 개발: `python3 -m http.server 4173` + `node proxy.js`(8787) + `config.local.js`(키, gitignore)
