@@ -1,0 +1,17 @@
+{
+  "name": "jongeup-mobile",
+  "version": "1.0.0",
+  "private": true,
+  "description": "존급 모바일 래퍼 (Capacitor) — Vercel 배포본을 네이티브 WebView로 로드",
+  "scripts": {
+    "sync": "cap sync",
+    "android": "cap open android"
+  },
+  "dependencies": {
+    "@capacitor/android": "^6.1.0",
+    "@capacitor/core": "^6.1.0"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^6.1.0"
+  }
+}

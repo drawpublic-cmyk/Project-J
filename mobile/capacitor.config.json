@@ -1,0 +1,10 @@
+{
+  "appId": "com.jongeup.app",
+  "appName": "존급",
+  "webDir": "www",
+  "server": {
+    "url": "https://project-j-phi.vercel.app",
+    "androidScheme": "https",
+    "cleartext": false
+  }
+}
