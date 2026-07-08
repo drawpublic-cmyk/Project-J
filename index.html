@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>존급 프로토타입</title>
   <style>
     /* =========================================================
@@ -833,6 +833,19 @@
       .phone { height: 780px; }
       .side { align-content: start; }
       .grid { grid-template-columns: 1fr; }
+    }
+
+    /* 모바일: 목업 틀 제거하고 실제 앱처럼 전체화면 채움 */
+    @media (max-width: 520px) {
+      html, body { margin: 0; height: 100%; background: var(--cream); }
+      .shell { padding: 0; gap: 0; min-height: 100dvh; }
+      .phone {
+        width: 100vw; height: 100dvh; max-width: none; margin: 0;
+        border: 0; border-radius: 0; box-shadow: none;
+        padding-top: env(safe-area-inset-top);   /* 노치/상태바 안전영역 */
+        box-sizing: border-box;
+      }
+      .notch { display: none; }                    /* OS 상태바가 있으니 가짜 노치 제거 */
     }
   </style>
 </head>
