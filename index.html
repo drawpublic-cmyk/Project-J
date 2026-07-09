@@ -2272,7 +2272,13 @@
         if (t.bus) {
           const clat = center.getLat(), clng = center.getLng();
           const ckey = "jongeup_busstops_v2_" + searchRadius + "_" + clat.toFixed(3) + "," + clng.toFixed(3);   // 반경별 캐시
-          const paint = list => list.forEach(p => addPin(p, p.lat, p.lng));
+          // 화면(뷰포트)에 보이는 정류소만 + 가까운 순 상한 → 밀집지역 렌더 부하/버퍼링 감소
+          const vb = kmap.map.getBounds();
+          const paint = list => list
+            .filter(p => vb.contain(new window.kakao.maps.LatLng(p.lat, p.lng)))
+            .sort((a, b) => a.distance - b.distance)
+            .slice(0, 60)
+            .forEach(p => addPin(p, p.lat, p.lng));
           const cached = readCache(ckey);
           if (cached && cached.length) { paint(cached); done(); return; }   // 유효 캐시만 즉시 사용(빈 캐시는 무시)
           // TAGO(전국) + 서울 버스 병렬 호출 → 순차 대기 제거(속도↑). TAGO 있으면 우선, 없으면 서울.
