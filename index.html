@@ -402,7 +402,7 @@
       right: 0;
       height: 76px;
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
+      grid-template-columns: repeat(4, 1fr);
       border-top: 1px solid var(--line);
       background: rgba(253,252,247,.96);
       z-index: 12;
@@ -420,6 +420,12 @@
     }
     .tab b { font-size: 19px; line-height: 1; }
     .tab.active { color: var(--brand-green); }
+    /* 설정 화면 */
+    .settings-group { margin: 6px 0 20px; }
+    .settings-label { font-size: 12px; font-weight: 900; color: var(--muted); padding: 4px 4px 10px; }
+    .settings-item { display: flex; justify-content: space-between; align-items: center; padding: 15px 15px; background: var(--cream); border: 1px solid var(--line); border-radius: 12px; margin-bottom: 8px; cursor: pointer; font-weight: 750; color: var(--charcoal); }
+    .settings-item:active { background: #f0eee6; }
+    .settings-item .arw { color: var(--muted); font-weight: 700; }
 
     /* ---------- 리스트 ---------- */
     .page {
@@ -921,6 +927,7 @@
           <button class="tab active" data-goto="map"><b>⌖</b>지도</button>
           <button class="tab" data-goto="list"><b>☰</b>리스트</button>
           <button class="tab" data-goto="fav"><b>♡</b>즐겨찾기</button>
+          <button class="tab" data-goto="settings"><b>⚙</b>설정</button>
         </nav>
       </section>
 
@@ -937,6 +944,7 @@
           <button class="tab" data-goto="map"><b>⌖</b>지도</button>
           <button class="tab active" data-goto="list"><b>☰</b>리스트</button>
           <button class="tab" data-goto="fav"><b>♡</b>즐겨찾기</button>
+          <button class="tab" data-goto="settings"><b>⚙</b>설정</button>
         </nav>
       </section>
 
@@ -952,6 +960,7 @@
           <button class="tab" data-goto="map"><b>⌖</b>지도</button>
           <button class="tab" data-goto="list"><b>☰</b>리스트</button>
           <button class="tab active" data-goto="fav"><b>♡</b>즐겨찾기</button>
+          <button class="tab" data-goto="settings"><b>⚙</b>설정</button>
         </nav>
       </section>
 
@@ -984,6 +993,7 @@
           <button class="tab" data-goto="map"><b>⌖</b>지도</button>
           <button class="tab" data-goto="list"><b>☰</b>리스트</button>
           <button class="tab" data-goto="fav"><b>♡</b>즐겨찾기</button>
+          <button class="tab" data-goto="settings"><b>⚙</b>설정</button>
         </nav>
       </section>
 
@@ -1035,6 +1045,7 @@
           <button class="tab" data-goto="map"><b>⌖</b>지도</button>
           <button class="tab" data-goto="list"><b>☰</b>리스트</button>
           <button class="tab" data-goto="fav"><b>♡</b>즐겨찾기</button>
+          <button class="tab" data-goto="settings"><b>⚙</b>설정</button>
         </nav>
       </section>
 
@@ -1055,6 +1066,7 @@
           <button class="tab" data-goto="map"><b>⌖</b>지도</button>
           <button class="tab" data-goto="list"><b>☰</b>리스트</button>
           <button class="tab" data-goto="fav"><b>♡</b>즐겨찾기</button>
+          <button class="tab" data-goto="settings"><b>⚙</b>설정</button>
         </nav>
       </section>
 
@@ -1084,6 +1096,7 @@
           <button class="tab" data-goto="map"><b>⌖</b>지도</button>
           <button class="tab" data-goto="list"><b>☰</b>리스트</button>
           <button class="tab" data-goto="fav"><b>♡</b>즐겨찾기</button>
+          <button class="tab" data-goto="settings"><b>⚙</b>설정</button>
         </nav>
       </section>
 
@@ -1104,6 +1117,30 @@
           <button class="primary" style="width:100%;margin-top:22px" data-goto="route">👉 지금 바로 안내</button>
           <button class="ghost" style="width:100%;margin-top:10px" data-goto="list">다음으로 가까운 3곳 보기 ↓</button>
         </div>
+      </section>
+
+      <!-- 설정 -->
+      <section class="screen" data-screen="settings">
+        <div class="page">
+          <div class="titlebar"><h2 style="margin:6px 0 14px">설정</h2></div>
+          <div class="settings-group">
+            <div class="settings-label">고객 지원</div>
+            <div class="settings-item" data-link="inquiry">어플리케이션 문의 <span class="arw">›</span></div>
+          </div>
+          <div class="settings-group">
+            <div class="settings-label">기타</div>
+            <div class="settings-item" data-link="terms">이용약관 <span class="arw">›</span></div>
+            <div class="settings-item" data-link="privacy">개인정보처리방침 <span class="arw">›</span></div>
+            <div class="settings-item" data-link="opensource">오픈소스 정보 <span class="arw">›</span></div>
+            <div class="settings-item" data-link="datasource">정보 제공처 <span class="arw">›</span></div>
+          </div>
+        </div>
+        <nav class="tabs">
+          <button class="tab" data-goto="map"><b>⌖</b>지도</button>
+          <button class="tab" data-goto="list"><b>☰</b>리스트</button>
+          <button class="tab" data-goto="fav"><b>♡</b>즐겨찾기</button>
+          <button class="tab active" data-goto="settings"><b>⚙</b>설정</button>
+        </nav>
       </section>
     </section>
 
@@ -1162,6 +1199,14 @@
       SEOUL_SUBWAY_KEY: (window.JONGEUP_SUBWAY_KEY || "__JONGEUP_KEY__"),
       DEFAULT_CENTER: { lat: 37.5547, lng: 126.9707 }, // 서울역
       RADIUS: 500
+    };
+    // 설정 > 각 항목 링크 (노션 페이지 URL을 여기에 붙여넣으면 됨. 비우면 "준비 중" 안내)
+    const SETTINGS_LINKS = {
+      inquiry: "",      // 어플리케이션 문의
+      terms: "",        // 이용약관
+      privacy: "",      // 개인정보처리방침
+      opensource: "",   // 오픈소스 정보
+      datasource: ""    // 정보 제공처
     };
     // 프록시 경유 URL — 원본 URL을 통째로 인코딩해서 붙임(?가 두 번 겹쳐 깨지는 문제 방지).
     // 로컬 proxy.js / Vercel /api/proxy 둘 다 디코드해서 처리.
@@ -2604,6 +2649,13 @@
       });
     }
 
+    // 설정 항목 클릭 → 노션 링크 열기(없으면 준비 중 안내)
+    document.querySelectorAll(".settings-item").forEach(el => el.addEventListener("click", () => {
+      const url = SETTINGS_LINKS[el.dataset.link];
+      if (url) window.open(url, "_blank", "noopener");
+      else alert("준비 중입니다. 곧 제공될 예정이에요.");
+    }));
+
     /* ---------- 부팅 ---------- */
     bindNavigation();
     bindSearch();
@@ -2631,7 +2683,7 @@
     enableDragScroll(document.getElementById("filterChips"));
     enableDragScroll(document.getElementById("listChips"));
     // URL 해시로 특정 화면 바로 보기 (#map, #list, #detail, #route, #search, #bus, #sos)
-    const screens = ["splash","onboard","map","list","fav","detail","route","search","bus","busline","trip","sos"];
+    const screens = ["splash","onboard","map","list","fav","detail","route","search","bus","busline","trip","settings","sos"];
     const fromHash = location.hash.replace("#", "");
     if (screens.includes(fromHash) && fromHash !== "splash") {
       show(fromHash);
