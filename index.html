@@ -1169,6 +1169,14 @@
     // 간단 TTL 캐시(localStorage) — 정류소 목록 등 잘 안 변하는 데이터 재요청 방지
     function readCache(key) { try { const o = JSON.parse(localStorage.getItem(key) || "null"); if (o && o.exp > Date.now()) return o.v; } catch (e) {} return null; }
     function writeCache(key, v, ttl) { try { localStorage.setItem(key, JSON.stringify({ exp: Date.now() + ttl, v })); } catch (e) {} }
+    // 네이티브 앱(Capacitor)일 때만: 웹뷰를 시스템바 뒤까지(edge-to-edge) 그려 앱 배경이 노치/네비바까지 이어지게.
+    // (브라우저에선 Capacitor 미존재 → 무시)
+    (function initNativeStatusBar() {
+      const SB = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.StatusBar;
+      if (!SB) return;
+      try { SB.setOverlaysWebView({ overlay: true }); } catch (e) {}
+      try { SB.setStyle({ style: "LIGHT" }); } catch (e) {}   // 밝은 바 배경 → 어두운 아이콘
+    })();
 
     /* ---------- 아이콘 (인라인 SVG line set, currentColor 상속) ---------- */
     // Map Icon Set 기준: 볼드 채움(흰 글리프) 스타일. 흰색은 currentColor(핀/뱃지=흰색) 상속
