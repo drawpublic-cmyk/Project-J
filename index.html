@@ -762,8 +762,9 @@
       background: var(--brand-green);
       color: #fff;
       display: flex;
-      align-items: end;
-      padding: 0 20px 14px;
+      align-items: center;
+      justify-content: space-between;   /* 뒤로가기(좌) · 급한 모드 ON(우) */
+      padding: 0 16px 10px;
       font-weight: 950;
     }
     .sos-card {
@@ -1108,7 +1109,10 @@
 
       <!-- 13. SOS -->
       <section class="screen sos-screen" data-screen="sos">
-        <div class="sos-header">🚨 급한 모드 ON</div>
+        <div class="sos-header">
+          <button class="icon-btn" data-goto="map" title="뒤로">←</button>
+          <span>🚨 급한 모드 ON</span>
+        </div>
         <div class="sos-card">
           <div class="big-pin"><span data-ic="toilet" data-ic-size="26"></span></div>
           <h1 style="margin:0 0 18px">가장 가까운<br>화장실</h1>
