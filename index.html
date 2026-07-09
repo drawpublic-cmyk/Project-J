@@ -2693,8 +2693,11 @@
       if (kmap.ready) { try { kmap.map.setLevel(levelForRadius(r)); } catch (e) {} loadKakaoPlaces(); }   // 지도와 연결: 줌+재검색
     }
     function clearCaches() {
-      Object.keys(localStorage).forEach(k => { if (/^jongeup_(busstops|geo|stnmaster)/.test(k)) localStorage.removeItem(k); });
-      alert("캐시를 삭제했어요. 데이터를 다시 불러올게요.");
+      // 임시 캐시 + 최근 검색 내역 삭제 (즐겨찾기는 보존)
+      Object.keys(localStorage).forEach(k => { if (/^jongeup_(busstops|geo|stnmaster|recent)/.test(k)) localStorage.removeItem(k); });
+      recent = [];                                          // 최근 검색 메모리도 비움
+      if (typeof renderRecent === "function") renderRecent();
+      alert("캐시와 최근 검색 내역을 삭제했어요. (즐겨찾기는 유지)");
       if (kmap.ready) loadKakaoPlaces();
     }
     // 설정 항목 클릭
