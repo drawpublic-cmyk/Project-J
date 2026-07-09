@@ -425,7 +425,13 @@
     .settings-label { font-size: 12px; font-weight: 900; color: var(--muted); padding: 4px 4px 10px; }
     .settings-item { display: flex; justify-content: space-between; align-items: center; padding: 15px 15px; background: var(--cream); border: 1px solid var(--line); border-radius: 12px; margin-bottom: 8px; cursor: pointer; font-weight: 750; color: var(--charcoal); }
     .settings-item:active { background: #f0eee6; }
+    .settings-item.static { cursor: default; }
+    .settings-item.static:active { background: var(--cream); }
     .settings-item .arw { color: var(--muted); font-weight: 700; }
+    .radius-opts { display: none; gap: 8px; flex-wrap: wrap; padding: 4px 2px 10px; }
+    .radius-opts.open { display: flex; }
+    .radius-opts button { border: 1px solid var(--line); background: #fff; border-radius: 999px; padding: 8px 14px; font-weight: 800; font-size: 13px; cursor: pointer; color: var(--charcoal); }
+    .radius-opts button.sel { background: var(--brand-green); color: #fff; border-color: var(--brand-green); }
 
     /* ---------- 리스트 ---------- */
     .page {
@@ -1124,6 +1130,22 @@
         <div class="page">
           <div class="titlebar"><h2 style="margin:6px 0 14px">설정</h2></div>
           <div class="settings-group">
+            <div class="settings-label">앱 정보</div>
+            <div class="settings-item static">버전 <span class="arw" id="appVer">v1.0.0</span></div>
+          </div>
+          <div class="settings-group">
+            <div class="settings-label">서비스 설정</div>
+            <div class="settings-item" data-act="cache">캐시 삭제 <span class="arw">›</span></div>
+            <div class="settings-item" data-act="radius">검색 반경 <span class="arw" id="radiusVal">500m ›</span></div>
+            <div class="radius-opts" id="radiusOpts">
+              <button data-r="300">300m</button>
+              <button data-r="500">500m</button>
+              <button data-r="1000">1km</button>
+              <button data-r="1500">1.5km</button>
+              <button data-r="2000">2km</button>
+            </div>
+          </div>
+          <div class="settings-group">
             <div class="settings-label">고객 지원</div>
             <div class="settings-item" data-link="inquiry">어플리케이션 문의 <span class="arw">›</span></div>
           </div>
@@ -1209,6 +1231,9 @@
       opensource: "",   // 오픈소스 정보
       datasource: ""    // 정보 제공처
     };
+    // 검색 반경(설정값, m) — 지도 검색·서울버스 정류소 검색에 사용. localStorage 유지.
+    let searchRadius = Number(localStorage.getItem("jongeup_radius")) || 500;
+    const radiusLabel = r => (r >= 1000 ? (r / 1000) + "km" : r + "m");
     // 프록시 경유 URL — 원본 URL을 통째로 인코딩해서 붙임(?가 두 번 겹쳐 깨지는 문제 방지).
     // 로컬 proxy.js / Vercel /api/proxy 둘 다 디코드해서 처리.
     const px = (u) => CONFIG.PROXY + encodeURIComponent(u);
@@ -2157,9 +2182,8 @@
       const myGen = ++searchGen;
       const ps = new window.kakao.maps.services.Places();
       const center = kmap.map.getCenter();
-      // 보이는 화면 영역을 반경으로 환산 → 지도를 움직이면 그 지역이 검색됨(카카오 최대 20km)
-      const b = kmap.map.getBounds(), ne = b.getNorthEast();
-      const radius = Math.min(20000, Math.max(300, Math.round(haversine(center.getLat(), center.getLng(), ne.getLat(), ne.getLng()))));
+      // 검색 반경 = 설정값(searchRadius). 지도 중심 기준으로 그 반경만 검색.
+      const radius = Math.min(20000, Math.max(100, searchRadius));
       const opt = { location: center, radius, sort: window.kakao.maps.services.SortBy.DISTANCE };
       // kind -> 카카오 검색 (카테고리코드 또는 키워드)
       const queries = {
@@ -2247,7 +2271,7 @@
         // 버스: TAGO(전국) 정류소 → 없으면(서울 등) 서울 버스 API로 폴백
         if (t.bus) {
           const clat = center.getLat(), clng = center.getLng();
-          const ckey = "jongeup_busstops_v2_" + clat.toFixed(3) + "," + clng.toFixed(3);   // v2: 빈 결과 캐시 오염 무효화
+          const ckey = "jongeup_busstops_v2_" + searchRadius + "_" + clat.toFixed(3) + "," + clng.toFixed(3);   // 반경별 캐시
           const paint = list => list.forEach(p => addPin(p, p.lat, p.lng));
           const cached = readCache(ckey);
           if (cached && cached.length) { paint(cached); done(); return; }   // 유효 캐시만 즉시 사용(빈 캐시는 무시)
@@ -2339,7 +2363,7 @@
     async function fetchSeoulBusStops(lat, lng) {
       if (!CONFIG.DATA_GO_KR_KEY || !CONFIG.PROXY) return [];
       try {
-        const url = `http://ws.bus.go.kr/api/rest/stationinfo/getStationByPos?serviceKey=${CONFIG.DATA_GO_KR_KEY}&tmX=${lng}&tmY=${lat}&radius=500&resultType=json`;
+        const url = `http://ws.bus.go.kr/api/rest/stationinfo/getStationByPos?serviceKey=${CONFIG.DATA_GO_KR_KEY}&tmX=${lng}&tmY=${lat}&radius=${Math.min(2000, searchRadius)}&resultType=json`;
         const res = await fetch(px(url));
         const rows = (await res.json())?.msgBody?.itemList || [];
         return rows.map(r => ({ name: r.stationNm, lat: Number(r.gpsY), lng: Number(r.gpsX), arsId: r.arsId, dist: Number(r.dist) || 0 }))
@@ -2650,9 +2674,26 @@
       });
     }
 
-    // 설정 항목 클릭 → 공유(친구추천) 또는 노션 링크 열기(없으면 준비 중 안내)
+    // 검색 반경 지도 줌 매핑 + 반경 변경(지도 재검색 연결)
+    function levelForRadius(r) { return r <= 300 ? 3 : r <= 500 ? 4 : r <= 1000 ? 5 : r <= 1500 ? 6 : 6; }
+    function setRadius(r) {
+      searchRadius = r;
+      localStorage.setItem("jongeup_radius", r);
+      const v = document.getElementById("radiusVal"); if (v) v.textContent = radiusLabel(r) + " ›";
+      document.querySelectorAll("#radiusOpts button").forEach(b => b.classList.toggle("sel", Number(b.dataset.r) === r));
+      const opts = document.getElementById("radiusOpts"); if (opts) opts.classList.remove("open");
+      if (kmap.ready) { try { kmap.map.setLevel(levelForRadius(r)); } catch (e) {} loadKakaoPlaces(); }   // 지도와 연결: 줌+재검색
+    }
+    function clearCaches() {
+      Object.keys(localStorage).forEach(k => { if (/^jongeup_(busstops|geo|stnmaster)/.test(k)) localStorage.removeItem(k); });
+      alert("캐시를 삭제했어요. 데이터를 다시 불러올게요.");
+      if (kmap.ready) loadKakaoPlaces();
+    }
+    // 설정 항목 클릭
     document.querySelectorAll(".settings-item").forEach(el => el.addEventListener("click", async () => {
-      const key = el.dataset.link;
+      const act = el.dataset.act, key = el.dataset.link;
+      if (act === "cache") return clearCaches();
+      if (act === "radius") { document.getElementById("radiusOpts").classList.toggle("open"); return; }
       if (key === "share") {
         const url = location.origin || "https://project-j-phi.vercel.app";
         const data = { title: "존급", text: "급할 때 내 주변 화장실·편의점·프린터·지하철·버스 찾기 — 존급", url };
@@ -2660,13 +2701,18 @@
           if (navigator.share) { await navigator.share(data); return; }
           await navigator.clipboard.writeText(url);
           alert("링크가 복사됐어요! 친구에게 붙여넣어 공유하세요.\n" + url);
-        } catch (e) { /* 사용자가 취소 등 */ }
+        } catch (e) { /* 취소 등 */ }
         return;
       }
-      const url = SETTINGS_LINKS[key];
-      if (url) window.open(url, "_blank", "noopener");
-      else alert("준비 중입니다. 곧 제공될 예정이에요.");
+      if (key) { const url = SETTINGS_LINKS[key]; if (url) window.open(url, "_blank", "noopener"); else alert("준비 중입니다. 곧 제공될 예정이에요."); }
+      // data 없는 정적 행(버전)은 무시
     }));
+    // 반경 옵션 버튼 + 초기 표시
+    document.querySelectorAll("#radiusOpts button").forEach(b => b.addEventListener("click", () => setRadius(Number(b.dataset.r))));
+    (function initRadiusUI() {
+      const v = document.getElementById("radiusVal"); if (v) v.textContent = radiusLabel(searchRadius) + " ›";
+      document.querySelectorAll("#radiusOpts button").forEach(b => b.classList.toggle("sel", Number(b.dataset.r) === searchRadius));
+    })();
 
     /* ---------- 부팅 ---------- */
     bindNavigation();
