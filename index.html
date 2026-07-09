@@ -2300,7 +2300,7 @@
             .finally(done);
           return;
         }
-        const cb = (data, status) => {
+        const cb = (data, status, pagination) => {
           if (status === window.kakao.maps.services.Status.OK) {
             data.forEach(d => {
               // 프린터: 업종/상호 기준 양성·음성 필터 (복권방 등 엉뚱 업종·기기 거래업체 차단)
@@ -2323,6 +2323,8 @@
                 lat: Number(d.y), lng: Number(d.x)
               }, d.y, d.x);
             });
+            // 반경 안 결과를 전부(카카오 최대 45개/3페이지) 가져오도록 다음 페이지까지 이어받기
+            if (pagination && pagination.hasNextPage && pagination.current < 3) { pagination.nextPage(); return; }
           }
           done();
         };
