@@ -1231,8 +1231,9 @@
       opensource: "",   // 오픈소스 정보
       datasource: ""    // 정보 제공처
     };
-    // 검색 반경(설정값, m) — 지도 검색·서울버스 정류소 검색에 사용. localStorage 유지.
-    let searchRadius = Number(localStorage.getItem("jongeup_radius")) || 500;
+    // 검색 반경(설정값, m) — 지도 검색·서울버스 정류소 검색에 사용.
+    // 앱 재시작 시 항상 기본 500m로 리셋(세션 중에는 변경 가능). 저장 안 함.
+    let searchRadius = 500;
     const radiusLabel = r => (r >= 1000 ? (r / 1000) + "km" : r + "m");
     // 프록시 경유 URL — 원본 URL을 통째로 인코딩해서 붙임(?가 두 번 겹쳐 깨지는 문제 방지).
     // 로컬 proxy.js / Vercel /api/proxy 둘 다 디코드해서 처리.
@@ -2685,8 +2686,7 @@
     // 검색 반경 지도 줌 매핑 + 반경 변경(지도 재검색 연결)
     function levelForRadius(r) { return r <= 300 ? 3 : r <= 500 ? 4 : r <= 1000 ? 5 : r <= 1500 ? 6 : 6; }
     function setRadius(r) {
-      searchRadius = r;
-      localStorage.setItem("jongeup_radius", r);
+      searchRadius = r;   // 세션 한정(저장 안 함) → 재시작 시 500m로 리셋
       const v = document.getElementById("radiusVal"); if (v) v.textContent = radiusLabel(r) + " ›";
       document.querySelectorAll("#radiusOpts button").forEach(b => b.classList.toggle("sel", Number(b.dataset.r) === r));
       const opts = document.getElementById("radiusOpts"); if (opts) opts.classList.remove("open");
