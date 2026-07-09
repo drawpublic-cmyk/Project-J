@@ -1129,6 +1129,7 @@
           </div>
           <div class="settings-group">
             <div class="settings-label">기타</div>
+            <div class="settings-item" data-link="share">친구에게 추천하기 <span class="arw">›</span></div>
             <div class="settings-item" data-link="terms">이용약관 <span class="arw">›</span></div>
             <div class="settings-item" data-link="privacy">개인정보처리방침 <span class="arw">›</span></div>
             <div class="settings-item" data-link="opensource">오픈소스 정보 <span class="arw">›</span></div>
@@ -2649,9 +2650,20 @@
       });
     }
 
-    // 설정 항목 클릭 → 노션 링크 열기(없으면 준비 중 안내)
-    document.querySelectorAll(".settings-item").forEach(el => el.addEventListener("click", () => {
-      const url = SETTINGS_LINKS[el.dataset.link];
+    // 설정 항목 클릭 → 공유(친구추천) 또는 노션 링크 열기(없으면 준비 중 안내)
+    document.querySelectorAll(".settings-item").forEach(el => el.addEventListener("click", async () => {
+      const key = el.dataset.link;
+      if (key === "share") {
+        const url = location.origin || "https://project-j-phi.vercel.app";
+        const data = { title: "존급", text: "급할 때 내 주변 화장실·편의점·프린터·지하철·버스 찾기 — 존급", url };
+        try {
+          if (navigator.share) { await navigator.share(data); return; }
+          await navigator.clipboard.writeText(url);
+          alert("링크가 복사됐어요! 친구에게 붙여넣어 공유하세요.\n" + url);
+        } catch (e) { /* 사용자가 취소 등 */ }
+        return;
+      }
+      const url = SETTINGS_LINKS[key];
       if (url) window.open(url, "_blank", "noopener");
       else alert("준비 중입니다. 곧 제공될 예정이에요.");
     }));
