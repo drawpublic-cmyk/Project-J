@@ -2201,17 +2201,17 @@
         // 버스: TAGO(전국) 정류소 → 없으면(서울 등) 서울 버스 API로 폴백
         if (t.bus) {
           const clat = center.getLat(), clng = center.getLng();
-          const ckey = "jongeup_busstops_" + clat.toFixed(3) + "," + clng.toFixed(3);
+          const ckey = "jongeup_busstops_v2_" + clat.toFixed(3) + "," + clng.toFixed(3);   // v2: 빈 결과 캐시 오염 무효화
           const paint = list => list.forEach(p => addPin(p, p.lat, p.lng));
           const cached = readCache(ckey);
-          if (cached) { paint(cached); done(); return; }   // 캐시 즉시(1일)
+          if (cached && cached.length) { paint(cached); done(); return; }   // 유효 캐시만 즉시 사용(빈 캐시는 무시)
           // TAGO(전국) + 서울 버스 병렬 호출 → 순차 대기 제거(속도↑). TAGO 있으면 우선, 없으면 서울.
           Promise.all([fetchBusStops(clat, clng).catch(() => []), fetchSeoulBusStops(clat, clng).catch(() => [])])
             .then(([tago, seoul]) => {
               const list = (tago && tago.length)
                 ? tago.map(s => ({ kind: "bus", name: s.name, distance: Math.round(haversine(clat, clng, s.lat, s.lng)), meta: "버스정류장", tags: [], target: "bus", addr: "", lat: s.lat, lng: s.lng, nodeid: s.nodeid, nodeno: s.nodeno, citycode: s.citycode }))
                 : seoul.map(s => ({ kind: "bus", name: s.name, distance: s.dist || Math.round(haversine(clat, clng, s.lat, s.lng)), meta: "버스정류장", tags: [], target: "bus", addr: "", lat: s.lat, lng: s.lng, arsId: s.arsId, seoul: true }));
-              writeCache(ckey, list, 864e5);   // 1일 캐시
+              if (list.length) writeCache(ckey, list, 864e5);   // 결과 있을 때만 캐시(빈 결과 오염 방지)
               paint(list);
               if (activeFilter === "bus" && !list.length) {
                 mapStatus("이 지역은 버스정류소 데이터가 없어요. 지도를 옮겨보세요", "err");
