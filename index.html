@@ -2289,10 +2289,11 @@
           // TAGO(전국) + 서울 버스 병렬 호출 → 순차 대기 제거(속도↑). TAGO 있으면 우선, 없으면 서울.
           Promise.all([fetchBusStops(clat, clng).catch(() => []), fetchSeoulBusStops(clat, clng).catch(() => [])])
             .then(([tago, seoul]) => {
-              const list = (tago && tago.length)
-                ? tago.map(s => ({ kind: "bus", name: s.name, distance: Math.round(haversine(clat, clng, s.lat, s.lng)), meta: "버스정류장", tags: [], target: "bus", addr: "", lat: s.lat, lng: s.lng, nodeid: s.nodeid, nodeno: s.nodeno, citycode: s.citycode }))
-                : seoul.map(s => ({ kind: "bus", name: s.name, distance: s.dist || Math.round(haversine(clat, clng, s.lat, s.lng)), meta: "버스정류장", tags: [], target: "bus", addr: "", lat: s.lat, lng: s.lng, arsId: s.arsId, seoul: true }));
-              if (list.length) writeCache(ckey, list, 864e5);   // 결과 있을 때만 캐시(빈 결과 오염 방지)
+              // 두 소스 합침 — 서울(ws.bus.go.kr, 시내버스 풍부) + TAGO(광역/전국). 한쪽 서버가 다운돼도 다른 쪽으로 표시.
+              const seoulList = (seoul || []).map(s => ({ kind: "bus", name: s.name, distance: s.dist || Math.round(haversine(clat, clng, s.lat, s.lng)), meta: "버스정류장", tags: [], target: "bus", addr: "", lat: s.lat, lng: s.lng, arsId: s.arsId, seoul: true }));
+              const tagoList = (tago || []).map(s => ({ kind: "bus", name: s.name, distance: Math.round(haversine(clat, clng, s.lat, s.lng)), meta: "버스정류장", tags: [], target: "bus", addr: "", lat: s.lat, lng: s.lng, nodeid: s.nodeid, nodeno: s.nodeno, citycode: s.citycode }));
+              const list = [...seoulList, ...tagoList];   // addPin이 좌표중복 제거
+              if (list.length) writeCache(ckey, list, 18e5);   // 30분 캐시(서버 복구 시 자가복구, 빈 결과는 저장 안 함)
               paint(list);
               if (activeFilter === "bus" && !list.length) {
                 mapStatus("이 지역은 버스정류소 데이터가 없어요. 지도를 옮겨보세요", "err");
