@@ -848,8 +848,8 @@
       .grid { grid-template-columns: 1fr; }
     }
 
-    /* 모바일/웹뷰: 목업 틀 제거하고 실제 앱처럼 전체화면 채움 */
-    @media (max-width: 520px) {
+    /* 모바일/웹뷰: 목업 틀 제거하고 실제 앱처럼 전체화면 채움 (세로 폰 + 가로 폰=높이 작음) */
+    @media (max-width: 520px), (max-height: 520px) {
       html, body { margin: 0; height: 100%; background: #fff; }
       .shell { padding: 0; gap: 0; min-height: 100dvh; }
       .phone {
