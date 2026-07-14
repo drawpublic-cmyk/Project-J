@@ -2556,13 +2556,27 @@
 
     /* ---------- 위치 권한 ---------- */
     // 지도는 즉시(기본 좌표) 띄우고, 위치 허용되면 그때 재중심 — 권한과 무관하게 항상 표시
-    function requestLocation() {
+    async function requestLocation() {
       startMap(CONFIG.DEFAULT_CENTER);
-      if (!navigator.geolocation) return;
+      const okMove = pos => recenter({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+      const fail = (msg) => { mapStatus((msg || "위치 확인 실패") + " — 서울역 기준으로 표시", "err"); setTimeout(() => mapStatus(null), 2800); };
+      // 네이티브 앱(Capacitor): 네이티브 위치 권한/좌표 사용 (웹 geolocation은 WebView에서 안 먹힘)
+      const Geo = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Geolocation;
+      if (Geo) {
+        try {
+          const perm = await Geo.requestPermissions();
+          if (perm && (perm.location === "denied" && perm.coarseLocation === "denied")) return fail("위치 권한 거부됨");
+          const pos = await Geo.getCurrentPosition({ enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 });
+          okMove(pos);
+        } catch (e) { fail("위치 확인 실패(" + (e && e.message ? e.message : e) + ")"); }
+        return;
+      }
+      // 브라우저 폴백
+      if (!navigator.geolocation) return fail("위치 미지원 브라우저");
       navigator.geolocation.getCurrentPosition(
-        pos => recenter({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-        err => { mapStatus("위치 권한 거부/실패(코드 " + err.code + ") — 서울역 기준으로 표시", "err"); setTimeout(() => mapStatus(null), 2800); },
-        { timeout: 8000, maximumAge: 60000 }
+        okMove,
+        err => fail("위치 권한 거부/실패(코드 " + err.code + ")"),
+        { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 }
       );
     }
     function recenter(center) {
