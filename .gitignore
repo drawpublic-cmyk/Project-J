@@ -14,3 +14,6 @@ _kt*.html
 _kakaotest.html
 *.log
 node_modules/
+
+# 화장실 지오코딩 캐시(재생성 가능, 용량 큼)
+.toilet-geocache.json
