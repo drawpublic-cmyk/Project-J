@@ -1196,7 +1196,7 @@
         <ul class="source-list">
           <li><b>카카오맵</b>: <code class="k">KAKAO_JS_KEY</code>에 JavaScript 키 입력 → 실제 지도 + 주변 화장실/편의점/프린터/지하철/버스 검색이 켜집니다. (developers.kakao.com에서 사이트 도메인 등록 필요)</li>
           <li><b>공공데이터포털</b>: <code class="k">DATA_GO_KR_KEY</code>(디코딩 서비스키) 입력. 브라우저 CORS 때문에 <code class="k">PROXY</code>에 프록시 주소를 넣어야 합니다. 함께 드린 <code class="k">proxy.js</code>를 <code class="k">node proxy.js</code>로 실행 후 <code class="k">PROXY:"http://localhost:8787/"</code>.</li>
-          <li>화장실: 카카오 키워드(화장실·공중·개방) + <b>전국 공중·개방화장실 51,986건</b>(행안부 표준데이터를 미리 좌표로 변환해 <code class="k">data/toilets/</code>에 격자로 내장 — 키 없이 동작). 버스: 도착정보(혼잡도) / 편의점·프린터: 카카오 검색(프린터는 무인·셀프 출력만).</li>
+          <li>화장실: 카카오 키워드(화장실·공중·개방) + <b>전국 공중·개방화장실 51,986건</b>(행안부 표준데이터를 미리 좌표로 변환해 <code class="k">data/toilets/</code>에 격자로 내장 — 키 없이 동작). 버스정류장: <b>국토부 전국 버스정류장 227,053개</b>(좌표 내장 → <code class="k">data/busstops/</code>에 격자로 내장, 키 없이 전국 핀) + 실시간 도착은 서울/TAGO API. 편의점·프린터: 카카오 검색(프린터는 무인·셀프 출력만).</li>
         </ul>
         <p style="margin-top:10px">자세한 셋업은 <a href="API_AND_REQUIREMENTS.md">API_AND_REQUIREMENTS.md</a> 참고.</p>
       </div>
@@ -1221,6 +1221,9 @@
       // 전국공중화장실표준데이터(개방화장실 51,986건)를 미리 좌표로 변환해 격자 타일로 넣어둔 경로.
       // 정적 파일이라 키·프록시 없이 그냥 동작함. (생성: tools/build-toilets.js)
       TOILET_DATA_DIR: (window.JONGEUP_TOILET_DIR || "data/toilets/"),
+      // 국토부 전국 버스정류장 위치정보(227,053개, 좌표 내장)를 격자 타일로 넣어둔 경로.
+      // 정적이라 키 없이 전국 버스 핀 즉시 표시. 실시간 도착만 API. (생성: tools/build-busstops.js)
+      BUSSTOP_DATA_DIR: (window.JONGEUP_BUSSTOP_DIR || "data/busstops/"),
       // 서울 열린데이터광장 '지하철 실시간 도착정보'(OA-12764) 인증키. 발급 즉시 사용, 'sample'로 테스트 가능. 프록시 필요.
       SEOUL_SUBWAY_KEY: (window.JONGEUP_SUBWAY_KEY || "__JONGEUP_KEY__"),
       DEFAULT_CENTER: { lat: 37.5547, lng: 126.9707 }, // 서울역
@@ -2291,13 +2294,18 @@
             .forEach(p => addPin(p, p.lat, p.lng));
           const cached = readCache(ckey);
           if (cached && cached.length) { paint(cached); done(); return; }   // 유효 캐시만 즉시 사용(빈 캐시는 무시)
-          // TAGO(전국) + 서울 버스 병렬 호출 → 순차 대기 제거(속도↑). TAGO 있으면 우선, 없으면 서울.
-          Promise.all([fetchBusStops(clat, clng).catch(() => []), fetchSeoulBusStops(clat, clng).catch(() => [])])
-            .then(([tago, seoul]) => {
-              // 두 소스 합침 — 서울(ws.bus.go.kr, 시내버스 풍부) + TAGO(광역/전국). 한쪽 서버가 다운돼도 다른 쪽으로 표시.
+          // 정적(전국 22.7만, 키 없이 즉시·완전) + TAGO(광역/전국) + 서울(시내버스 풍부) 병렬.
+          // 정적을 맨 앞에 둬 addPin 중복제거가 정적 핀(검증된 도착 필드)을 우선 유지하고,
+          // API는 정적이 놓친 신규 정류소만 보충. 어느 API가 다운돼도 정적으로 전국 표시.
+          Promise.all([
+            fetchBusStopsStatic(clat, clng, searchRadius).catch(() => []),
+            fetchBusStops(clat, clng).catch(() => []),
+            fetchSeoulBusStops(clat, clng).catch(() => [])
+          ])
+            .then(([staticStops, tago, seoul]) => {
               const seoulList = (seoul || []).map(s => ({ kind: "bus", name: s.name, distance: s.dist || Math.round(haversine(clat, clng, s.lat, s.lng)), meta: "버스정류장", tags: [], target: "bus", addr: "", lat: s.lat, lng: s.lng, arsId: s.arsId, seoul: true }));
               const tagoList = (tago || []).map(s => ({ kind: "bus", name: s.name, distance: Math.round(haversine(clat, clng, s.lat, s.lng)), meta: "버스정류장", tags: [], target: "bus", addr: "", lat: s.lat, lng: s.lng, nodeid: s.nodeid, nodeno: s.nodeno, citycode: s.citycode }));
-              const list = [...seoulList, ...tagoList];   // addPin이 좌표중복 제거
+              const list = [...(staticStops || []), ...seoulList, ...tagoList];   // 정적 우선, addPin이 좌표/이름 중복 제거
               if (list.length) writeCache(ckey, list, 18e5);   // 30분 캐시(서버 복구 시 자가복구, 빈 결과는 저장 안 함)
               paint(list);
               if (activeFilter === "bus" && !list.length) {
@@ -2567,6 +2575,57 @@
       }
       out.sort((a, b) => a.distance - b.distance);
       return cap ? out.slice(0, cap) : out;
+    }
+
+    /* ---------- 전국 버스정류장 (정적 격자 타일 — 좌표 내장, 지오코딩 불필요) ----------
+       국토부 전국 버스정류장 위치정보 227,053개를 화장실과 같은 0.05° 격자로 넣어둠.
+       실시간 도착은 핀 클릭 시에만: 서울(도시코드11)=arsId → 서울 API, 그 외=도시코드+정류장번호 → TAGO. */
+    let busIndexP = null;
+    const busTiles = new Map();
+    function loadBusIndex() {
+      if (!busIndexP) {
+        busIndexP = fetch(CONFIG.BUSSTOP_DATA_DIR + "index.json")
+          .then(r => r.ok ? r.json() : null)
+          .then(j => new Set(j?.tiles || []))
+          .catch(e => { console.warn("[존급] 버스정류장 데이터 없음:", e.message); return new Set(); });
+      }
+      return busIndexP;
+    }
+    function loadBusTile(key) {
+      if (!busTiles.has(key)) {
+        busTiles.set(key, fetch(CONFIG.BUSSTOP_DATA_DIR + key + ".json")
+          .then(r => r.ok ? r.json() : []).catch(() => []));
+      }
+      return busTiles.get(key);
+    }
+    // 반경 안 정류장 — 주변 타일만 읽어 거리순 반환(핀 소스). 화장실 fetchOpenToilets와 동일 구조.
+    async function fetchBusStopsStatic(lat, lng, radius) {
+      const idx = await loadBusIndex();
+      if (!idx.size) return [];
+      const r = radius || searchRadius;
+      const dLat = r / 111000, dLng = r / (111000 * Math.max(0.2, Math.cos(lat * Math.PI / 180)));
+      const keys = [];
+      for (let a = Math.floor((lat - dLat) / TOILET_STEP); a <= Math.floor((lat + dLat) / TOILET_STEP); a++)
+        for (let b = Math.floor((lng - dLng) / TOILET_STEP); b <= Math.floor((lng + dLng) / TOILET_STEP); b++) {
+          const k = a + "_" + b;
+          if (idx.has(k)) keys.push(k);
+        }
+      if (!keys.length) return [];
+      const tiles = await Promise.all(keys.map(loadBusTile));
+      const out = [];
+      for (const rows of tiles) {
+        for (const [name, tLat, tLng, city, nodeid, ars] of rows) {
+          const distance = Math.round(haversine(lat, lng, tLat, tLng));
+          if (distance > r) continue;
+          // openBus는 arsId면 서울 API, citycode+nodeid면 TAGO로 분기 → 여기서 맞춰 담아줌
+          const stop = { kind: "bus", name: name || "버스정류장", distance, meta: "버스정류장", tags: [], target: "bus", addr: "", lat: tLat, lng: tLng };
+          if (ars) { stop.arsId = ars; stop.seoul = true; }
+          else { stop.citycode = city; stop.nodeid = nodeid; }
+          out.push(stop);
+        }
+      }
+      out.sort((a, b) => a.distance - b.distance);
+      return out;
     }
 
     /* ---------- 위치 권한 ---------- */
