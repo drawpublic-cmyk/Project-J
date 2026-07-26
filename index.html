@@ -1684,9 +1684,10 @@
     }
 
     function renderList() {
-      const list = visiblePlaces().slice().sort((a, b) => a.distance - b.distance);
+      const all = visiblePlaces().slice().sort((a, b) => a.distance - b.distance);
+      const list = all.slice(0, 60);   // 목록 DOM도 가까운 60개만(밀집지역 렌더 부하↓). 라벨엔 실제 총계 표시
       const label = activeFilter === "all" ? "전체" : (filters.find(f => f.key === activeFilter)?.name || "");
-      document.getElementById("countLabel").textContent = `${label} ${list.length}`;
+      document.getElementById("countLabel").textContent = `${label} ${all.length}`;
       renderPlaceList("placeList", list);
     }
 
@@ -2192,6 +2193,10 @@
       // 검색 반경 = 설정값(searchRadius). 지도 중심 기준으로 그 반경만 검색.
       const radius = Math.min(20000, Math.max(100, searchRadius));
       const opt = { location: center, radius, sort: window.kakao.maps.services.SortBy.DISTANCE };
+      // 화면 맞춤: 지금 보이는 지도 범위 밖 핀은 안 그림 + 총량 상한(밀집지역/저사양 렉 방지).
+      // 지도를 옮기면 idle→재검색으로 새 화면 기준으로 다시 그려짐. 리스트는 상한과 무관하게 전부 유지.
+      const vbounds = kmap.map.getBounds();
+      const MAX_OVERLAYS = 80;
       // kind -> 카카오 검색 (카테고리코드 또는 키워드)
       const queries = {
         // 화장실 = 전용 화장실 + '누구나 쓸 수 있는 화장실을 품은 공공시설'(공원/지하철역/관공서/도서관 등). tag로 출처 표시
@@ -2270,6 +2275,11 @@
         if (hits && hits.some(p => haversine(p[0], p[1], lat, lng) < 150)) return;  // 같은 이름 + 150m 내 = 같은 곳
         byName.set(nk, (hits || []).concat([[lat, lng]]));
         seen.add(dk);
+        collected.push(place);
+        liveRender();   // 리스트/카드는 상한과 무관하게 항상 갱신(가까운 순 목록 유지)
+        // 지도 오버레이는 '화면 안 + 상한 이내'일 때만 — 화면 밖·초과분은 안 그려 렉 방지
+        if (kmap.overlays.length >= MAX_OVERLAYS) return;
+        if (!vbounds.contain(new window.kakao.maps.LatLng(lat, lng))) return;
         const elPin = document.createElement("div");
         elPin.innerHTML = pinHtml(place.kind);
         elPin.style.cursor = "pointer";
@@ -2277,8 +2287,6 @@
         kmap.overlays.push(new window.kakao.maps.CustomOverlay({
           map: kmap.map, position: new window.kakao.maps.LatLng(lat, lng), content: elPin, yAnchor: 1, clickable: true
         }));
-        collected.push(place);
-        liveRender();   // 들어오는 대로 리스트/카드 점진 갱신
       };
       tasks.forEach(t => {
         // 버스: TAGO(전국) 정류소 → 없으면(서울 등) 서울 버스 API로 폴백
