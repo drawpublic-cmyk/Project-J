@@ -2159,6 +2159,12 @@
         // 움직이는 동안엔 핀 0개 → 부드러운 드래그. 멈추면(idle) 지금 화면만 다시 그림(캐시로 즉시).
         window.kakao.maps.event.addListener(kmap.map, "dragstart", clearOverlays);
         window.kakao.maps.event.addListener(kmap.map, "zoom_start", clearOverlays);
+        // 직접 확대/축소하면 검색 반경도 줌에 맞춰 따라가게(줌아웃=넓게, 줌인=좁게). 안 그러면
+        // 줌아웃해도 500m만 검색해 화면 대부분이 비어 '줌이 안 되는' 느낌이 남. idle이 재검색함.
+        window.kakao.maps.event.addListener(kmap.map, "zoom_changed", () => {
+          searchRadius = radiusForLevel(kmap.map.getLevel());
+          syncRadiusUI(searchRadius);
+        });
         // 지도를 움직이면(이동·확대) 그 지역을 다시 검색 → 전국 어디든 탐색 가능
         let idleTimer;
         window.kakao.maps.event.addListener(kmap.map, "idle", () => {
@@ -2802,7 +2808,16 @@
     }
 
     // 검색 반경 지도 줌 매핑 + 반경 변경(지도 재검색 연결)
-    function levelForRadius(r) { return r <= 300 ? 3 : r <= 500 ? 4 : r <= 1000 ? 5 : r <= 1500 ? 6 : 6; }
+    // 반경 칩(300·500·1000·1500·2000m)이 각각 다른 줌 레벨(3~7)과 정확히 역대응하도록 맞춤
+    function levelForRadius(r) { return r <= 300 ? 3 : r <= 500 ? 4 : r <= 1000 ? 5 : r <= 1500 ? 6 : 7; }
+    // 역방향: 현재 줌 레벨 → 검색 반경. 직접 확대/축소 시 검색 영역이 화면에 맞게 따라가도록.
+    // 너무 줌아웃해도 전국을 긁지 않게 3km로 상한.
+    function radiusForLevel(l) { return l <= 3 ? 300 : l === 4 ? 500 : l === 5 ? 1000 : l === 6 ? 1500 : l === 7 ? 2000 : 3000; }
+    // 반경 UI(설정 라벨·선택칩) 동기화
+    function syncRadiusUI(r) {
+      const v = document.getElementById("radiusVal"); if (v) v.textContent = radiusLabel(r) + " ›";
+      document.querySelectorAll("#radiusOpts button").forEach(b => b.classList.toggle("sel", Number(b.dataset.r) === r));
+    }
     function setRadius(r) {
       searchRadius = r;   // 세션 한정(저장 안 함) → 재시작 시 500m로 리셋
       const v = document.getElementById("radiusVal"); if (v) v.textContent = radiusLabel(r) + " ›";
