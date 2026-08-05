@@ -2154,11 +2154,16 @@
         mapStatus("주변 장소 검색 중…", "ok");
         loadKakaoPlaces();
         setTimeout(() => mapStatus(null), 1500);
+        // 드래그·줌 시작하면 핀(CustomOverlay=DOM)을 즉시 치움. CustomOverlay는 이동 매 프레임마다
+        // JS로 위치를 재계산해서, 핀이 많으면 드래그 자체가 버벅인다(카카오맵의 알려진 성능 함정).
+        // 움직이는 동안엔 핀 0개 → 부드러운 드래그. 멈추면(idle) 지금 화면만 다시 그림(캐시로 즉시).
+        window.kakao.maps.event.addListener(kmap.map, "dragstart", clearOverlays);
+        window.kakao.maps.event.addListener(kmap.map, "zoom_start", clearOverlays);
         // 지도를 움직이면(이동·확대) 그 지역을 다시 검색 → 전국 어디든 탐색 가능
         let idleTimer;
         window.kakao.maps.event.addListener(kmap.map, "idle", () => {
           clearTimeout(idleTimer);
-          idleTimer = setTimeout(loadKakaoPlaces, 700);   // 지도 멈춘 뒤에만 재검색(과호출 방지)
+          idleTimer = setTimeout(loadKakaoPlaces, 450);   // 지도 멈춘 뒤에만 재검색(과호출 방지, 캐시로 즉시 복귀)
         });
       } catch (e) {
         console.warn("[존급] 카카오맵 미사용 → mock 지도:", e);
