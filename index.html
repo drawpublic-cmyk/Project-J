@@ -2671,17 +2671,24 @@
         try {
           const perm = await Geo.requestPermissions();
           if (perm && (perm.location === "denied" && perm.coarseLocation === "denied")) return fail("위치 권한 거부됨");
-          const pos = await Geo.getCurrentPosition({ enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 });
+          // 실내에선 고정밀 GPS가 새 fix를 못 잡아 타임아웃됨(마지막 fix가 오래됐으면 캐시도 못 씀).
+          // → 고정밀을 짧게 먼저, 실패하면 네트워크 위치(wifi/셀, 실내서 빠름·정확도 ~20m로 충분)로 폴백.
+          const pos = await Geo.getCurrentPosition({ enableHighAccuracy: true, timeout: 5000, maximumAge: 300000 })
+            .catch(() => Geo.getCurrentPosition({ enableHighAccuracy: false, timeout: 12000, maximumAge: 600000 }));
           okMove(pos);
         } catch (e) { fail("위치 확인 실패(" + (e && e.message ? e.message : e) + ")"); }
         return;
       }
-      // 브라우저 폴백
+      // 브라우저 폴백 — 동일하게 고정밀 짧게 → 네트워크 위치 폴백
       if (!navigator.geolocation) return fail("위치 미지원 브라우저");
       navigator.geolocation.getCurrentPosition(
         okMove,
-        err => fail("위치 권한 거부/실패(코드 " + err.code + ")"),
-        { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 }
+        () => navigator.geolocation.getCurrentPosition(
+          okMove,
+          err => fail("위치 권한 거부/실패(코드 " + err.code + ")"),
+          { enableHighAccuracy: false, timeout: 12000, maximumAge: 600000 }
+        ),
+        { enableHighAccuracy: true, timeout: 5000, maximumAge: 300000 }
       );
     }
     function recenter(center) {
