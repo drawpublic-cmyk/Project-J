@@ -2260,6 +2260,7 @@
         // 결과를 항상 반영(0건이어도) → 선택 카테고리만 정확히 표시
         places = collected.sort((a, b) => a.distance - b.distance);
         renderList(); renderMap();
+        if (collected.length) writeCache(cacheKey, collected, 9e4);   // 90초 결과 캐시(재방문 즉시표시)
       };
       // 클릭 가능한 핀 추가 + collected 적재 (카카오/TAGO 공용, 좌표 중복 제거)
       // 같은 장소를 이름으로도 한 번 더 걸러냄. 카카오 검색 좌표와 공공데이터 지오코딩 좌표는
@@ -2288,6 +2289,16 @@
           map: kmap.map, position: new window.kakao.maps.LatLng(lat, lng), content: elPin, yAnchor: 1, clickable: true
         }));
       };
+      // 검색 결과 캐시: 같은 필터·위치·반경으로 최근(90초) 검색한 게 있으면 네트워크 없이 즉시 표시.
+      // 화장실·정류장·편의점 등 위치는 잘 안 변하므로 재방문/미세이동 시 체감속도가 크게 오름.
+      const cacheKey = "jongeup_search_" + activeFilter + "_" + Math.round(searchRadius) + "_" + center.getLat().toFixed(3) + "," + center.getLng().toFixed(3);
+      const cachedPlaces = readCache(cacheKey);
+      if (cachedPlaces && cachedPlaces.length) {
+        cachedPlaces.forEach(p => addPin(p, p.lat, p.lng));   // addPin이 화면컬링·상한·중복제거 적용
+        places = collected.slice().sort((a, b) => a.distance - b.distance);
+        renderList(); renderMap();
+        return;   // 네트워크 팬아웃 생략
+      }
       tasks.forEach(t => {
         // 버스: TAGO(전국) 정류소 → 없으면(서울 등) 서울 버스 API로 폴백
         if (t.bus) {
@@ -2295,34 +2306,35 @@
           const ckey = "jongeup_busstops_v2_" + searchRadius + "_" + clat.toFixed(3) + "," + clng.toFixed(3);   // 반경별 캐시
           // 화면(뷰포트)에 보이는 정류소만 + 가까운 순 상한 → 밀집지역 렌더 부하/버퍼링 감소
           const vb = kmap.map.getBounds();
-          const paint = list => list
-            .filter(p => vb.contain(new window.kakao.maps.LatLng(p.lat, p.lng)))
-            .sort((a, b) => a.distance - b.distance)
-            .slice(0, 60)
-            .forEach(p => addPin(p, p.lat, p.lng));
+          const inView = list => (list || []).filter(p => vb.contain(new window.kakao.maps.LatLng(p.lat, p.lng)));
+          const paint = list => inView(list).sort((a, b) => a.distance - b.distance).slice(0, 60).forEach(p => addPin(p, p.lat, p.lng));
           const cached = readCache(ckey);
           if (cached && cached.length) { paint(cached); done(); return; }   // 유효 캐시만 즉시 사용(빈 캐시는 무시)
-          // 정적(전국 22.7만, 키 없이 즉시·완전) + TAGO(광역/전국) + 서울(시내버스 풍부) 병렬.
-          // 정적을 맨 앞에 둬 addPin 중복제거가 정적 핀(검증된 도착 필드)을 우선 유지하고,
-          // API는 정적이 놓친 신규 정류소만 보충. 어느 API가 다운돼도 정적으로 전국 표시.
-          Promise.all([
-            fetchBusStopsStatic(clat, clng, searchRadius).catch(() => []),
-            fetchBusStops(clat, clng).catch(() => []),
-            fetchSeoulBusStops(clat, clng).catch(() => [])
-          ])
-            .then(([staticStops, tago, seoul]) => {
-              const seoulList = (seoul || []).map(s => ({ kind: "bus", name: s.name, distance: s.dist || Math.round(haversine(clat, clng, s.lat, s.lng)), meta: "버스정류장", tags: [], target: "bus", addr: "", lat: s.lat, lng: s.lng, arsId: s.arsId, seoul: true }));
-              const tagoList = (tago || []).map(s => ({ kind: "bus", name: s.name, distance: Math.round(haversine(clat, clng, s.lat, s.lng)), meta: "버스정류장", tags: [], target: "bus", addr: "", lat: s.lat, lng: s.lng, nodeid: s.nodeid, nodeno: s.nodeno, citycode: s.citycode }));
-              const list = [...(staticStops || []), ...seoulList, ...tagoList];   // 정적 우선, addPin이 좌표/이름 중복 제거
-              if (list.length) writeCache(ckey, list, 18e5);   // 30분 캐시(서버 복구 시 자가복구, 빈 결과는 저장 안 함)
-              paint(list);
-              if (activeFilter === "bus" && !list.length) {
-                mapStatus("이 지역은 버스정류소 데이터가 없어요. 지도를 옮겨보세요", "err");
-                setTimeout(() => mapStatus(null), 4000);
-              }
-            })
-            .catch(e => console.warn("[존급] 버스 정류소 API 실패:", e))
-            .finally(done);
+          // 정적(전국 22.7만, 키 없이 즉시·완전)을 먼저 그림. 화면 안에 충분하면 거기서 끝 →
+          // 느린 /api/proxy 실시간 정류소 호출(TAGO·서울, 각 0.5~0.7초 2회)을 생략해 속도↑.
+          fetchBusStopsStatic(clat, clng, searchRadius).then(staticStops => {
+            if (inView(staticStops).length >= 5) {           // 정적으로 충분 → API 생략
+              paint(staticStops);
+              writeCache(ckey, staticStops, 18e5);
+              done();
+              return;
+            }
+            // 정적이 부족한 지역(강릉 등 전국집계 미보고)만 실시간 API로 보충
+            Promise.all([fetchBusStops(clat, clng).catch(() => []), fetchSeoulBusStops(clat, clng).catch(() => [])])
+              .then(([tago, seoul]) => {
+                const seoulList = (seoul || []).map(s => ({ kind: "bus", name: s.name, distance: s.dist || Math.round(haversine(clat, clng, s.lat, s.lng)), meta: "버스정류장", tags: [], target: "bus", addr: "", lat: s.lat, lng: s.lng, arsId: s.arsId, seoul: true }));
+                const tagoList = (tago || []).map(s => ({ kind: "bus", name: s.name, distance: Math.round(haversine(clat, clng, s.lat, s.lng)), meta: "버스정류장", tags: [], target: "bus", addr: "", lat: s.lat, lng: s.lng, nodeid: s.nodeid, nodeno: s.nodeno, citycode: s.citycode }));
+                const list = [...(staticStops || []), ...seoulList, ...tagoList];   // 정적 우선, addPin이 좌표/이름 중복 제거
+                if (list.length) writeCache(ckey, list, 18e5);   // 30분 캐시(서버 복구 시 자가복구, 빈 결과는 저장 안 함)
+                paint(list);
+                if (activeFilter === "bus" && !list.length) {
+                  mapStatus("이 지역은 버스정류소 데이터가 없어요. 지도를 옮겨보세요", "err");
+                  setTimeout(() => mapStatus(null), 4000);
+                }
+              })
+              .catch(e => console.warn("[존급] 버스 정류소 API 실패:", e))
+              .finally(done);
+          }).catch(e => { console.warn("[존급] 버스 정적 실패:", e); done(); });
           return;
         }
         // 전국 공중·개방화장실 정적 데이터(사전 지오코딩된 격자 타일)
