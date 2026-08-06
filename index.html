@@ -2665,31 +2665,33 @@
       startMap(CONFIG.DEFAULT_CENTER);
       const okMove = pos => recenter({ lat: pos.coords.latitude, lng: pos.coords.longitude });
       const fail = (msg) => { mapStatus((msg || "위치 확인 실패") + " — 서울역 기준으로 표시", "err"); setTimeout(() => mapStatus(null), 2800); };
+      // 3단계 폴백: ①고정밀 GPS(짧게, 실외 정밀) → ②네트워크 위치(wifi/셀, 실내서 빠름)
+      // → ③마지막 알려진 위치(아무 나이나). 실내에선 ①②가 새 fix를 못 잡아 타임아웃되는데,
+      // 그때도 서울역(하드코딩) 대신 폰이 마지막으로 알던 위치(생활권)로 잡아줌.
+      const STAGES = [
+        { enableHighAccuracy: true, timeout: 5000, maximumAge: 300000 },     // 고정밀 fresh
+        { enableHighAccuracy: false, timeout: 8000, maximumAge: 600000 },    // 네트워크 fresh
+        { enableHighAccuracy: false, timeout: 3000, maximumAge: 2592000000 } // 마지막 알려진(30일 내)
+      ];
       // 네이티브 앱(Capacitor): 네이티브 위치 권한/좌표 사용 (웹 geolocation은 WebView에서 안 먹힘)
       const Geo = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Geolocation;
       if (Geo) {
         try {
           const perm = await Geo.requestPermissions();
-          if (perm && (perm.location === "denied" && perm.coarseLocation === "denied")) return fail("위치 권한 거부됨");
-          // 실내에선 고정밀 GPS가 새 fix를 못 잡아 타임아웃됨(마지막 fix가 오래됐으면 캐시도 못 씀).
-          // → 고정밀을 짧게 먼저, 실패하면 네트워크 위치(wifi/셀, 실내서 빠름·정확도 ~20m로 충분)로 폴백.
-          const pos = await Geo.getCurrentPosition({ enableHighAccuracy: true, timeout: 5000, maximumAge: 300000 })
-            .catch(() => Geo.getCurrentPosition({ enableHighAccuracy: false, timeout: 12000, maximumAge: 600000 }));
-          okMove(pos);
+          if (perm && (perm.location === "denied" && perm.coarseLocation === "denied"))
+            return fail("위치 권한이 꺼져 있어요 — 설정 > 존급 > 위치에서 허용해주세요");
+          let pos = null;
+          for (const opt of STAGES) { try { pos = await Geo.getCurrentPosition(opt); break; } catch (e) {} }
+          if (pos) okMove(pos); else fail("현재 위치를 못 찾았어요 — 휴대폰 위치(GPS)를 켜고 다시 시도해주세요");
         } catch (e) { fail("위치 확인 실패(" + (e && e.message ? e.message : e) + ")"); }
         return;
       }
-      // 브라우저 폴백 — 동일하게 고정밀 짧게 → 네트워크 위치 폴백
+      // 브라우저 폴백 — 동일 3단계
       if (!navigator.geolocation) return fail("위치 미지원 브라우저");
-      navigator.geolocation.getCurrentPosition(
-        okMove,
-        () => navigator.geolocation.getCurrentPosition(
-          okMove,
-          err => fail("위치 권한 거부/실패(코드 " + err.code + ")"),
-          { enableHighAccuracy: false, timeout: 12000, maximumAge: 600000 }
-        ),
-        { enableHighAccuracy: true, timeout: 5000, maximumAge: 300000 }
-      );
+      const getPos = opt => new Promise((res, rej) => navigator.geolocation.getCurrentPosition(res, rej, opt));
+      STAGES.reduce((p, opt) => p.catch(() => getPos(opt)), Promise.reject())
+        .then(okMove)
+        .catch(err => fail("위치 권한 거부/실패(코드 " + (err && err.code) + ")"));
     }
     function recenter(center) {
       if (!kmap.ready || !kmap.map) return;
