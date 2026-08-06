@@ -2680,8 +2680,12 @@
           const perm = await Geo.requestPermissions();
           if (perm && (perm.location === "denied" && perm.coarseLocation === "denied"))
             return fail("위치 권한이 꺼져 있어요 — 설정 > 존급 > 위치에서 허용해주세요");
+          console.log("[존급위치] perm=" + JSON.stringify(perm));
           let pos = null;
-          for (const opt of STAGES) { try { pos = await Geo.getCurrentPosition(opt); break; } catch (e) {} }
+          for (const opt of STAGES) {
+            try { pos = await Geo.getCurrentPosition(opt); console.log("[존급위치] 성공 hi=" + opt.enableHighAccuracy + " → " + pos.coords.latitude + "," + pos.coords.longitude + " acc=" + pos.coords.accuracy); break; }
+            catch (e) { console.log("[존급위치] 실패 hi=" + opt.enableHighAccuracy + " to=" + opt.timeout + " : " + (e && e.message ? e.message : e)); }
+          }
           if (pos) okMove(pos); else fail("현재 위치를 못 찾았어요 — 휴대폰 위치(GPS)를 켜고 다시 시도해주세요");
         } catch (e) { fail("위치 확인 실패(" + (e && e.message ? e.message : e) + ")"); }
         return;
