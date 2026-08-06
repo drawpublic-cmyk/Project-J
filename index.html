@@ -1139,6 +1139,7 @@
           </div>
           <div class="settings-group">
             <div class="settings-label">서비스 설정</div>
+            <div class="settings-item" data-act="location">내 위치 허용 <span class="arw" id="locVal">›</span></div>
             <div class="settings-item" data-act="cache">캐시 삭제 <span class="arw">›</span></div>
             <div class="settings-item" data-act="radius">검색 반경 <span class="arw" id="radiusVal">500m ›</span></div>
             <div class="radius-opts" id="radiusOpts">
@@ -1603,6 +1604,7 @@
       if (screen === "map" && kmap.ready) kmap.relayout();
       if (screen === "map" && !mapStarted && CONFIG.KAKAO_JS_KEY) requestLocation(); // 지도 진입 시 실제 지도 자동 로드
       if (screen === "fav") renderFav();
+      if (screen === "settings") updateLocationSetting();   // '내 위치 허용' 상태 라벨 갱신
       if (screen === "search") { renderRecent(); const sb = document.getElementById("searchBox"); if (sb) setTimeout(() => sb.focus(), 50); }
       if (screen === "trip") ensureStations();     // 역 목록 준비(검색용)
       if (screen !== "busline") stopLinePoll();   // 노선 화면 벗어나면 자동갱신 중단
@@ -2695,6 +2697,39 @@
         .then(okMove)
         .catch(err => fail("위치 권한 거부/실패(코드 " + (err && err.code) + ")"));
     }
+    // 위치 권한 상태 조회('granted'|'denied'|'prompt') — 네이티브/브라우저 공용
+    async function locPermState() {
+      const Geo = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Geolocation;
+      if (Geo && Geo.checkPermissions) {
+        try {
+          const p = await Geo.checkPermissions();
+          if (p.location === "granted" || p.coarseLocation === "granted") return "granted";
+          if (p.location === "denied" && p.coarseLocation === "denied") return "denied";
+          return "prompt";
+        } catch (e) { return "prompt"; }
+      }
+      if (navigator.permissions && navigator.permissions.query) {
+        try { return (await navigator.permissions.query({ name: "geolocation" })).state; } catch (e) {}
+      }
+      return "prompt";
+    }
+    // 설정 탭 '내 위치 허용' 상태 라벨 갱신
+    async function updateLocationSetting() {
+      const el = document.getElementById("locVal"); if (!el) return;
+      const st = await locPermState();
+      el.textContent = st === "granted" ? "허용됨" : st === "denied" ? "꺼짐 ›" : "허용하기 ›";
+    }
+    // 설정 탭 '내 위치 허용' 클릭: 허용/미결정이면 권한요청+현재위치로 재중심, 영구거부면 폰 설정으로 안내
+    async function handleLocationSetting() {
+      const st = await locPermState();
+      if (st === "denied") {
+        alert("위치 권한이 꺼져 있어요.\n\n휴대폰 설정 > 애플리케이션 > 존급 > 권한 > 위치 를 '허용'으로 바꾼 뒤 다시 눌러주세요.");
+        return;
+      }
+      show("map");           // 지도 탭으로 이동
+      requestLocation();     // 권한 팝업(미결정 시)+현재위치 조회+지도 재중심
+      setTimeout(updateLocationSetting, 2000);
+    }
     function recenter(center) {
       // 위치가 지도 초기화보다 먼저 잡히는 경합: 아직 준비 전이면 좌표를 저장해뒀다가
       // 지도 준비되면(initKakao 끝) 적용. 안 그러면 내 위치를 잡고도 서울역에 머무름.
@@ -2849,6 +2884,7 @@
     // 설정 항목 클릭
     document.querySelectorAll(".settings-item").forEach(el => el.addEventListener("click", async () => {
       const act = el.dataset.act, key = el.dataset.link;
+      if (act === "location") return handleLocationSetting();
       if (act === "cache") return clearCaches();
       if (act === "radius") { document.getElementById("radiusOpts").classList.toggle("open"); return; }
       if (key === "share") {
