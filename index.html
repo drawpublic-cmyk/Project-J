@@ -2151,6 +2151,8 @@
         });
         kmap.ready = true;
         setApiStatus(true);
+        // 지도 준비 전에 위치가 먼저 잡혔으면(경합) 그 좌표로 바로 이동
+        if (kmap.pendingCenter) { const c = kmap.pendingCenter; kmap.pendingCenter = null; recenter(c); }
         mapStatus("주변 장소 검색 중…", "ok");
         loadKakaoPlaces();
         setTimeout(() => mapStatus(null), 1500);
@@ -2698,7 +2700,9 @@
         .catch(err => fail("위치 권한 거부/실패(코드 " + (err && err.code) + ")"));
     }
     function recenter(center) {
-      if (!kmap.ready || !kmap.map) return;
+      // 위치가 지도 초기화보다 먼저 잡히는 경합: 아직 준비 전이면 좌표를 저장해뒀다가
+      // 지도 준비되면(initKakao 끝) 적용. 안 그러면 내 위치를 잡고도 서울역에 머무름.
+      if (!kmap.ready || !kmap.map) { kmap.pendingCenter = center; return; }
       kmap.map.setCenter(new window.kakao.maps.LatLng(center.lat, center.lng));
       if (kmap.meOverlay) kmap.meOverlay.setPosition(new window.kakao.maps.LatLng(center.lat, center.lng));
       loadKakaoPlaces();
