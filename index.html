@@ -2686,7 +2686,13 @@
             return fail("위치 권한이 꺼져 있어요 — 설정 > 존급 > 위치에서 허용해주세요");
           let pos = null;
           for (const opt of STAGES) { try { pos = await Geo.getCurrentPosition(opt); break; } catch (e) {} }
-          if (pos) okMove(pos); else fail("현재 위치를 못 찾았어요 — 휴대폰 위치(GPS)를 켜고 다시 시도해주세요");
+          if (pos) { okMove(pos); return; }
+          // 권한은 있는데 위치를 못 잡음(GPS 꺼짐 등) → 위치 설정 화면 바로 열기 제안
+          fail("현재 위치를 못 찾았어요 — 휴대폰 위치(GPS)를 켜주세요");
+          const NS = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.NativeSettings;
+          if (NS && NS.openAndroid && confirm("휴대폰 위치(GPS)가 꺼져 있을 수 있어요.\n위치 설정을 열까요?")) {
+            openDeviceSettings("location");
+          }
         } catch (e) { fail("위치 확인 실패(" + (e && e.message ? e.message : e) + ")"); }
         return;
       }
@@ -2719,11 +2725,19 @@
       const st = await locPermState();
       el.textContent = st === "granted" ? "허용됨" : st === "denied" ? "꺼짐 ›" : "허용하기 ›";
     }
-    // 설정 탭 '내 위치 허용' 클릭: 허용/미결정이면 권한요청+현재위치로 재중심, 영구거부면 폰 설정으로 안내
+    // 폰의 시스템 설정 화면 열기(네이티브 플러그인). 'application_details'=앱 권한, 'location'=위치(GPS).
+    // 플러그인 없는 구버전 APK/브라우저에선 false 반환 → 호출부가 안내문으로 폴백.
+    async function openDeviceSettings(which) {
+      const NS = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.NativeSettings;
+      if (NS && NS.openAndroid) { try { await NS.openAndroid({ option: which }); return true; } catch (e) {} }
+      return false;
+    }
+    // 설정 탭 '내 위치 허용' 클릭: 허용/미결정이면 권한요청+현재위치로 재중심, 영구거부면 폰 앱 설정 화면을 바로 엶
     async function handleLocationSetting() {
       const st = await locPermState();
       if (st === "denied") {
-        alert("위치 권한이 꺼져 있어요.\n\n휴대폰 설정 > 애플리케이션 > 존급 > 권한 > 위치 를 '허용'으로 바꾼 뒤 다시 눌러주세요.");
+        const opened = await openDeviceSettings("application_details");   // 앱 권한 화면으로 바로 이동
+        if (!opened) alert("위치 권한이 꺼져 있어요.\n\n휴대폰 설정 > 애플리케이션 > 존급 > 권한 > 위치 를 '허용'으로 바꿔주세요.");
         return;
       }
       show("map");           // 지도 탭으로 이동

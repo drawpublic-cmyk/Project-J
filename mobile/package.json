@@ -11,7 +11,8 @@
     "@capacitor/android": "^6.1.0",
     "@capacitor/core": "^6.1.0",
     "@capacitor/geolocation": "^6.1.1",
-    "@capacitor/status-bar": "^6.0.3"
+    "@capacitor/status-bar": "^6.0.3",
+    "capacitor-native-settings": "^6.0.6"
   },
   "devDependencies": {
     "@capacitor/cli": "^6.1.0"
