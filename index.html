@@ -428,6 +428,11 @@
     .settings-item.static { cursor: default; }
     .settings-item.static:active { background: var(--cream); }
     .settings-item .arw { color: var(--muted); font-weight: 700; }
+    /* 내 위치 허용 ON/OFF 토글 */
+    .loc-toggle { width: 46px; height: 28px; border-radius: 14px; background: #cfcabd; position: relative; transition: background .2s; flex: none; }
+    .loc-toggle.on { background: var(--brand-green); }
+    .loc-toggle::after { content: ""; position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; border-radius: 50%; background: #fff; transition: left .2s; box-shadow: 0 1px 3px rgba(0,0,0,.25); }
+    .loc-toggle.on::after { left: 21px; }
     .radius-opts { display: none; gap: 8px; flex-wrap: wrap; padding: 4px 2px 10px; }
     .radius-opts.open { display: flex; }
     .radius-opts button { border: 1px solid var(--line); background: #fff; border-radius: 999px; padding: 8px 14px; font-weight: 800; font-size: 13px; cursor: pointer; color: var(--charcoal); }
@@ -1139,7 +1144,7 @@
           </div>
           <div class="settings-group">
             <div class="settings-label">서비스 설정</div>
-            <div class="settings-item" data-act="location">내 위치 허용 <span class="arw" id="locVal">›</span></div>
+            <div class="settings-item" data-act="location">내 위치 허용 <span class="loc-toggle" id="locToggle"></span></div>
             <div class="settings-item" data-act="cache">캐시 삭제 <span class="arw">›</span></div>
             <div class="settings-item" data-act="radius">검색 반경 <span class="arw" id="radiusVal">500m ›</span></div>
             <div class="radius-opts" id="radiusOpts">
@@ -2667,6 +2672,7 @@
     // 지도는 즉시(기본 좌표) 띄우고, 위치 허용되면 그때 재중심 — 권한과 무관하게 항상 표시
     async function requestLocation() {
       startMap(CONFIG.DEFAULT_CENTER);
+      if (!locPrefOn()) return;   // 사용자가 '내 위치 사용'을 꺼둠 → 기본 위치로만 표시
       const okMove = pos => recenter({ lat: pos.coords.latitude, lng: pos.coords.longitude });
       const fail = (msg) => { mapStatus((msg || "위치 확인 실패") + " — 서울역 기준으로 표시", "err"); setTimeout(() => mapStatus(null), 2800); };
       // 3단계 폴백: ①고정밀 GPS(짧게, 실외 정밀) → ②네트워크 위치(wifi/셀, 실내서 빠름)
@@ -2719,11 +2725,15 @@
       }
       return "prompt";
     }
-    // 설정 탭 '내 위치 허용' 상태 라벨 갱신
+    // '내 위치 사용' 앱 내 선호(ON/OFF). OS 권한과 별개로, 사용자가 앱이 위치를 쓸지 직접 켜고 끔.
+    // 안드로이드는 앱이 자기 OS 권한을 못 끄므로(끄려면 폰 설정), 이 토글은 앱 레벨 스위치.
+    function locPrefOn() { try { return localStorage.getItem("jongeup_useLoc") !== "0"; } catch (e) { return true; } }  // 기본 ON
+    function setLocPref(on) { try { localStorage.setItem("jongeup_useLoc", on ? "1" : "0"); } catch (e) {} }
+    // 설정 탭 '내 위치 허용' 토글 표시 = 앱 선호 ON && OS 권한이 거부 아님
     async function updateLocationSetting() {
-      const el = document.getElementById("locVal"); if (!el) return;
+      const t = document.getElementById("locToggle"); if (!t) return;
       const st = await locPermState();
-      el.textContent = st === "granted" ? "허용됨" : st === "denied" ? "꺼짐 ›" : "허용하기 ›";
+      t.classList.toggle("on", locPrefOn() && st !== "denied");
     }
     // 폰의 시스템 설정 화면 열기(네이티브 플러그인). 'application_details'=앱 권한, 'location'=위치(GPS).
     // 플러그인 없는 구버전 APK/브라우저에선 false 반환 → 호출부가 안내문으로 폴백.
@@ -2732,17 +2742,29 @@
       if (NS && NS.openAndroid) { try { await NS.openAndroid({ option: which }); return true; } catch (e) {} }
       return false;
     }
-    // 설정 탭 '내 위치 허용' 클릭: 허용/미결정이면 권한요청+현재위치로 재중심, 영구거부면 폰 앱 설정 화면을 바로 엶
+    // 설정 탭 '내 위치 허용' 토글 클릭
     async function handleLocationSetting() {
-      const st = await locPermState();
-      if (st === "denied") {
-        const opened = await openDeviceSettings("application_details");   // 앱 권한 화면으로 바로 이동
-        if (!opened) alert("위치 권한이 꺼져 있어요.\n\n휴대폰 설정 > 애플리케이션 > 존급 > 권한 > 위치 를 '허용'으로 바꿔주세요.");
-        return;
+      const willOn = !(locPrefOn());   // 현재 꺼져있으면 켜려는 것
+      if (willOn) {
+        const st = await locPermState();
+        if (st === "denied") {
+          // OS 권한이 영구 거부라 앱만으론 못 켬 → 폰 설정으로 이동해 허용하게. 토글은 OFF 유지.
+          const opened = await openDeviceSettings("application_details");
+          if (!opened) alert("위치 권한이 꺼져 있어요.\n\n휴대폰 설정 > 애플리케이션 > 존급 > 권한 > 위치 를 '허용'으로 바꿔주세요.");
+          return;
+        }
+        setLocPref(true);
+        updateLocationSetting();
+        show("map");           // 지도로 이동해 현재 위치 잡기
+        requestLocation();     // 권한 팝업(미결정 시)+현재위치+재중심
+        setTimeout(updateLocationSetting, 2000);
+      } else {
+        // 끄기: 앱이 위치를 안 쓰게(OS 권한은 그대로 — 완전 차단은 폰 설정에서)
+        setLocPref(false);
+        updateLocationSetting();
+        mapStatus && mapStatus("내 위치 사용을 껐어요. 지도는 기본 위치로 표시돼요.", "ok");
+        setTimeout(() => mapStatus && mapStatus(null), 2500);
       }
-      show("map");           // 지도 탭으로 이동
-      requestLocation();     // 권한 팝업(미결정 시)+현재위치 조회+지도 재중심
-      setTimeout(updateLocationSetting, 2000);
     }
     function recenter(center) {
       // 위치가 지도 초기화보다 먼저 잡히는 경합: 아직 준비 전이면 좌표를 저장해뒀다가
