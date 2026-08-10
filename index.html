@@ -433,6 +433,20 @@
     .loc-toggle.on { background: var(--brand-green); }
     .loc-toggle::after { content: ""; position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; border-radius: 50%; background: #fff; transition: left .2s; box-shadow: 0 1px 3px rgba(0,0,0,.25); }
     .loc-toggle.on::after { left: 21px; }
+    /* 정보 시트(오픈소스·정보제공처 목록) */
+    .info-modal { position: fixed; inset: 0; z-index: 1000; display: none; }
+    .info-modal.open { display: block; }
+    .info-modal .backdrop { position: absolute; inset: 0; background: rgba(0,0,0,.45); }
+    .info-sheet { position: absolute; left: 0; right: 0; bottom: 0; max-height: 82vh; background: var(--cream); border-radius: 20px 20px 0 0; display: flex; flex-direction: column; box-shadow: 0 -8px 30px rgba(0,0,0,.2); }
+    .info-sheet header { display: flex; align-items: center; justify-content: space-between; padding: 18px 18px 8px; }
+    .info-sheet header h3 { margin: 0; font-size: 18px; font-weight: 850; color: var(--charcoal); }
+    .info-sheet .close { background: none; border: none; font-size: 22px; color: var(--muted); cursor: pointer; line-height: 1; padding: 2px 6px; }
+    .info-body { overflow-y: auto; padding: 2px 18px calc(24px + env(safe-area-inset-bottom)); }
+    .info-body .row { padding: 13px 0; border-bottom: 1px solid var(--line); }
+    .info-body .row:last-child { border-bottom: none; }
+    .info-body .row b { display: block; color: var(--charcoal); font-weight: 800; font-size: 15px; margin-bottom: 3px; }
+    .info-body .row small { color: var(--muted); font-size: 13px; line-height: 1.55; }
+    .info-body .note { color: var(--muted); font-size: 12px; padding: 14px 0 2px; line-height: 1.5; }
     .radius-opts { display: none; gap: 8px; flex-wrap: wrap; padding: 4px 2px 10px; }
     .radius-opts.open { display: flex; }
     .radius-opts button { border: 1px solid var(--line); background: #fff; border-radius: 999px; padding: 8px 14px; font-weight: 800; font-size: 13px; cursor: pointer; color: var(--charcoal); }
@@ -1209,6 +1223,15 @@
     </aside>
   </main>
 
+  <!-- 정보 시트(오픈소스·정보제공처) -->
+  <div class="info-modal" id="infoModal">
+    <div class="backdrop"></div>
+    <div class="info-sheet">
+      <header><h3 id="infoTitle"></h3><button class="close" aria-label="닫기">✕</button></header>
+      <div class="info-body" id="infoBody"></div>
+    </div>
+  </div>
+
   <!-- 로컬 전용 키 파일 (gitignore됨, 공개본엔 없어서 404 무시) -->
   <script src="config.local.js"></script>
   <script>
@@ -1235,14 +1258,33 @@
       DEFAULT_CENTER: { lat: 37.5547, lng: 126.9707 }, // 서울역
       RADIUS: 500
     };
-    // 설정 > 각 항목 링크 (노션 페이지 URL을 여기에 붙여넣으면 됨. 비우면 "준비 중" 안내)
+    // 설정 > 각 항목 링크 (노션 페이지 URL). 비우면 "준비 중" 안내.
+    // inquiry(mailto)·opensource·datasource는 링크가 아니라 핸들러에서 별도 처리.
     const SETTINGS_LINKS = {
-      inquiry: "",      // 어플리케이션 문의
-      terms: "",        // 이용약관
-      privacy: "",      // 개인정보처리방침
-      opensource: "",   // 오픈소스 정보
-      datasource: ""    // 정보 제공처
+      inquiry: "",      // 어플리케이션 문의 → mailto(핸들러 처리)
+      terms: "https://burnt-trade-c45.notion.site/396bf5de103880bba40ace785a7370a2?source=copy_link",   // 이용약관
+      privacy: "https://burnt-trade-c45.notion.site/397bf5de1038807d84c5c20a135cc5a6?source=copy_link",  // 개인정보처리방침
+      opensource: "",   // 오픈소스 정보 → 앱 내 목록(핸들러 처리)
+      datasource: ""    // 정보 제공처 → 앱 내 목록(핸들러 처리)
     };
+    // 문의 메일 주소
+    const INQUIRY_EMAIL = "draw.public@gmail.com";
+    // 오픈소스 정보 [이름, 라이선스·출처, 용도]
+    const OPENSOURCE_LIST = [
+      ["Capacitor", "MIT License · Ionic", "웹앱을 안드로이드 네이티브로 감싸는 프레임워크"],
+      ["@capacitor/geolocation", "MIT License", "현재 위치(GPS·네트워크) 조회"],
+      ["@capacitor/status-bar", "MIT License", "상태바 스타일 제어"],
+      ["capacitor-native-settings", "MIT License", "기기 설정 화면 바로 열기"]
+    ];
+    // 정보 제공처 [데이터·서비스, 제공기관, 용도]
+    const DATASOURCE_LIST = [
+      ["카카오맵 (Kakao Maps API)", "카카오", "지도, 장소 검색(편의점·프린터·지하철역), 주소 좌표 변환"],
+      ["지하철 실시간 도착정보", "서울특별시 열린데이터광장", "지하철 실시간 도착·열차 위치, 역 정보"],
+      ["대중교통 정보(TAGO)", "국토교통부 · 공공데이터포털", "전국 버스 정류소·실시간 도착정보"],
+      ["버스도착정보 (TOPIS)", "서울특별시", "서울 버스 도착·노선·정류소"],
+      ["전국 공중화장실 표준데이터", "행정안전부", "전국 공중·개방 화장실 위치·정보"],
+      ["전국 버스정류장 위치정보", "국토교통부", "전국 버스정류장 좌표"]
+    ];
     // 검색 반경(설정값, m) — 지도 검색·서울버스 정류소 검색에 사용.
     // 앱 재시작 시 항상 기본 500m로 리셋(세션 중에는 변경 가능). 저장 안 함.
     let searchRadius = 500;
@@ -2917,12 +2959,28 @@
       alert("캐시와 최근 검색 내역을 삭제했어요. (즐겨찾기는 유지)");
       if (kmap.ready) loadKakaoPlaces();
     }
+    // 정보 시트(오픈소스·정보제공처) 열고 닫기
+    const infoRows = arr => arr.map(([a, b, c]) => `<div class="row"><b>${a}</b><small>${b}${c ? " · " + c : ""}</small></div>`).join("");
+    function openInfo(title, rowsHtml, note) {
+      document.getElementById("infoTitle").textContent = title;
+      document.getElementById("infoBody").innerHTML = rowsHtml + (note ? `<div class="note">${note}</div>` : "");
+      document.getElementById("infoModal").classList.add("open");
+    }
+    function closeInfo() { document.getElementById("infoModal").classList.remove("open"); }
+    document.querySelectorAll("#infoModal .backdrop, #infoModal .close").forEach(el => el.addEventListener("click", closeInfo));
     // 설정 항목 클릭
     document.querySelectorAll(".settings-item").forEach(el => el.addEventListener("click", async () => {
       const act = el.dataset.act, key = el.dataset.link;
       if (act === "location") return handleLocationSetting();
       if (act === "cache") return clearCaches();
       if (act === "radius") { document.getElementById("radiusOpts").classList.toggle("open"); return; }
+      if (key === "inquiry") {   // 문의 → 메일 앱(Gmail 등)으로 draw.public@gmail.com 작성
+        location.href = "mailto:" + INQUIRY_EMAIL + "?subject=" + encodeURIComponent("[존급] 문의") +
+          "&body=" + encodeURIComponent("문의 내용을 적어주세요.\n\n\n---\n앱 버전: v1.0.0");
+        return;
+      }
+      if (key === "opensource") return openInfo("오픈소스 정보", infoRows(OPENSOURCE_LIST), "이 앱은 위 오픈소스를 사용합니다. 각 라이선스 전문은 해당 프로젝트 저장소에서 확인할 수 있어요.");
+      if (key === "datasource") return openInfo("정보 제공처", infoRows(DATASOURCE_LIST), "공공데이터는 각 기관의 이용약관에 따라 제공됩니다.");
       if (key === "share") {
         const url = location.origin || "https://project-j-phi.vercel.app";
         const data = { title: "존급", text: "급할 때 내 주변 화장실·편의점·프린터·지하철·버스 찾기 — 존급", url };
