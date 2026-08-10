@@ -1500,7 +1500,7 @@
           const pos = new window.kakao.maps.LatLng(place.lat, place.lng);
           new window.kakao.maps.StaticMap(map, { center: pos, level: 3, marker: { position: pos } });
         });
-        if (place.placeUrl) { photo.href = place.placeUrl; photo.textContent = "📷 사진·정보"; photo.className = "ph-label photo-link corner"; photo.style.display = ""; }
+        if (place.placeUrl) { photo.href = place.placeUrl; photo.onclick = (e) => { e.preventDefault(); openExternal(place.placeUrl); }; photo.textContent = "📷 사진·정보"; photo.className = "ph-label photo-link corner"; photo.style.display = ""; }
         else { photo.style.display = "none"; }
       } else {
         map.style.display = "none"; map.innerHTML = "";
@@ -2959,6 +2959,15 @@
       alert("캐시와 최근 검색 내역을 삭제했어요. (즐겨찾기는 유지)");
       if (kmap.ready) loadKakaoPlaces();
     }
+    // 외부 링크 열기 — Capacitor WebView에선 window.open이 외부 URL을 못 여는 경우가 많아
+    // Browser 플러그인(인앱 브라우저)을 우선 사용. 없으면(웹/구APK) window.open→location.href 폴백.
+    async function openExternal(url) {
+      if (!url) return;
+      const B = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Browser;
+      if (B && B.open) { try { await B.open({ url }); return; } catch (e) {} }
+      const w = window.open(url, "_blank", "noopener");
+      if (!w) location.href = url;
+    }
     // 정보 시트(오픈소스·정보제공처) 열고 닫기
     const infoRows = arr => arr.map(([a, b, c]) => `<div class="row"><b>${a}</b><small>${b}${c ? " · " + c : ""}</small></div>`).join("");
     function openInfo(title, rowsHtml, note) {
@@ -2991,7 +3000,7 @@
         } catch (e) { /* 취소 등 */ }
         return;
       }
-      if (key) { const url = SETTINGS_LINKS[key]; if (url) window.open(url, "_blank", "noopener"); else alert("준비 중입니다. 곧 제공될 예정이에요."); }
+      if (key) { const url = SETTINGS_LINKS[key]; if (url) openExternal(url); else alert("준비 중입니다. 곧 제공될 예정이에요."); }
       // data 없는 정적 행(버전)은 무시
     }));
     // 반경 옵션 버튼 + 초기 표시
