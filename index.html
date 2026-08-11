@@ -2985,9 +2985,10 @@
       if (act === "location") return handleLocationSetting();
       if (act === "cache") return clearCaches();
       if (act === "radius") { document.getElementById("radiusOpts").classList.toggle("open"); return; }
-      if (key === "inquiry") {   // 문의 → 메일 앱(Gmail 등)으로 draw.public@gmail.com 작성
-        location.href = "mailto:" + INQUIRY_EMAIL + "?subject=" + encodeURIComponent("[존급] 문의") +
-          "&body=" + encodeURIComponent("문의 내용을 적어주세요.\n\n\n---\n앱 버전: v1.0.0");
+      if (key === "inquiry") {   // 문의 → Gmail 웹 작성창(인앱 브라우저). 기기 메일앱 설정과 무관하게 열림.
+        const su = encodeURIComponent("[존급] 문의");
+        const body = encodeURIComponent("문의 내용을 적어주세요.\n\n\n---\n앱 버전: v1.0.0");
+        openExternal("https://mail.google.com/mail/?view=cm&fs=1&to=" + INQUIRY_EMAIL + "&su=" + su + "&body=" + body);
         return;
       }
       if (key === "opensource") return openInfo("오픈소스 정보", infoRows(OPENSOURCE_LIST), "이 앱은 위 오픈소스를 사용합니다. 각 라이선스 전문은 해당 프로젝트 저장소에서 확인할 수 있어요.");
