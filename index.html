@@ -428,6 +428,7 @@
     .settings-item.static { cursor: default; }
     .settings-item.static:active { background: var(--cream); }
     .settings-item .arw { color: var(--muted); font-weight: 700; }
+    .settings-ver { text-align: center; color: var(--muted); font-size: 12px; line-height: 1.6; padding: 20px 0 calc(14px + env(safe-area-inset-bottom)); }
     /* 내 위치 허용 ON/OFF 토글 */
     .loc-toggle { width: 46px; height: 28px; border-radius: 14px; background: #cfcabd; position: relative; transition: background .2s; flex: none; }
     .loc-toggle.on { background: var(--brand-green); }
@@ -1181,6 +1182,7 @@
             <div class="settings-item" data-link="opensource">오픈소스 정보 <span class="arw">›</span></div>
             <div class="settings-item" data-link="datasource">정보 제공처 <span class="arw">›</span></div>
           </div>
+          <div class="settings-ver">존급(JONGEUP) v1.0.0<br>ⓒ Drawcorporation</div>
         </div>
         <nav class="tabs">
           <button class="tab" data-goto="map"><b>⌖</b>지도</button>
