@@ -1655,6 +1655,8 @@
       if (screen === "search") { renderRecent(); const sb = document.getElementById("searchBox"); if (sb) setTimeout(() => sb.focus(), 50); }
       if (screen === "trip") ensureStations();     // 역 목록 준비(검색용)
       if (screen !== "busline") stopLinePoll();   // 노선 화면 벗어나면 자동갱신 중단
+      // 현재 화면 기억 — 인앱 브라우저 등으로 앱이 재로드돼도 있던 화면으로 복원(온보딩으로 안 돌아가게)
+      try { if (screen !== "splash") localStorage.setItem("jongeup_lastScreen", JSON.stringify({ s: screen, t: Date.now() })); } catch (e) {}
     }
     function bindNavigation(root = document) {
       root.querySelectorAll("[data-goto]").forEach(el => {
@@ -3039,7 +3041,17 @@
     // URL 해시로 특정 화면 바로 보기 (#map, #list, #detail, #route, #search, #bus, #sos)
     const screens = ["splash","onboard","map","list","fav","detail","route","search","bus","busline","trip","settings","sos"];
     const fromHash = location.hash.replace("#", "");
-    if (screens.includes(fromHash) && fromHash !== "splash") {
+    // 인앱 브라우저(약관 등)를 닫으면 안드로이드가 앱을 재로드해 온보딩으로 돌아가는 문제 방지:
+    // 최근(10분 내) 있던 화면이 자체완결 화면(설정·즐겨찾기·지도)이면 그 화면으로 복원.
+    const RESTORE_OK = ["settings", "fav", "map"];
+    let didRestore = false;
+    try {
+      const o = JSON.parse(localStorage.getItem("jongeup_lastScreen") || "null");
+      if (o && RESTORE_OK.includes(o.s) && (Date.now() - o.t) < 600000) { show(o.s); didRestore = true; }
+    } catch (e) {}
+    if (didRestore) {
+      // 복원됨 — 아무것도 안 함
+    } else if (screens.includes(fromHash) && fromHash !== "splash") {
       show(fromHash);
     } else {
       // 해시 없음 또는 #splash → 스플래시 보여주고 자동으로 온보딩으로 (안 넘어가는 문제 방지)
