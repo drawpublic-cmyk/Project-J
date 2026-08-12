@@ -9,6 +9,7 @@
        1. 컬러 토큰 (Design Spec v1 — 절대값. 직접 하드코딩 금지)
        ========================================================= */
     :root {
+      --ad-h: 0px;            /* 하단 광고 배너 높이 — 배너 표시 시 JS가 52px로 설정해 앱을 그만큼 위로 올림 */
       --brand-green: #06530B; /* 모든 주요 액션: 전체(활성)·SOS·길안내, 버스 핀, 선택점, 선택 칩 */
       --lavender:    #BBBFEC; /* 모든 카테고리 핀(화·편·프 동일), 스플래시/버스헤더, 정보 박스 */
       --cream:       #FDFCF7; /* 카드·검색바·시트 배경 */
@@ -873,7 +874,7 @@
       html, body { margin: 0; height: 100%; background: #fff; }
       .shell { padding: 0; gap: 0; min-height: 100dvh; }
       .phone {
-        width: 100vw; height: 100dvh; max-width: none; margin: 0;
+        width: 100vw; height: calc(100dvh - var(--ad-h)); max-width: none; margin: 0;  /* 배너 높이만큼 줄여 하단에 배너 자리 확보 */
         border: 0; border-radius: 0; box-shadow: none;
         /* 시스템바 뒤까지 화면을 꽉 채움 — 노치/제스처바 영역은 각 헤더·페이지·탭이 자기 배경색으로 연장(아래 safe-area 규칙) */
       }
@@ -1326,10 +1327,13 @@
       const want = BANNER_SCREENS.includes(screen);
       try {
         if (want && !bannerShown) {
+          document.documentElement.style.setProperty("--ad-h", "52px");   // 앱을 배너 높이만큼 올려 탭바 안 가리게
           await A.showBanner({ adId: ADMOB_BANNER_ID, adSize: "BANNER", position: "BOTTOM_CENTER", margin: 0, isTesting: true });
           bannerShown = true;
+          if (kmap.ready) setTimeout(() => kmap.relayout(), 50);          // 높이 바뀐 뒤 지도 다시 맞춤
         } else if (!want && bannerShown) {
           await A.hideBanner(); bannerShown = false;
+          document.documentElement.style.setProperty("--ad-h", "0px");
         }
       } catch (e) { console.warn("[존급] 배너 표시 오류:", e); }
     }
