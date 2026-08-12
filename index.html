@@ -1341,6 +1341,7 @@
       try {
         if (want && !bannerShown) {
           measureNavInset();   // 표시 직전 최신 네비바 높이 확보(초기 측정 0이던 경우 보정)
+          console.log("[존급배너] navInset=" + navInset + " ad-h=" + (BANNER_H + navInset) + " dpr=" + window.devicePixelRatio + " innerH=" + window.innerHeight);
           // 아래→위 순서: [시스템 네비바] → [광고 배너] → [탭바] → [콘텐츠]
           root.setProperty("--ad-h", (BANNER_H + navInset) + "px");   // 앱을 배너+네비바 만큼 올림(탭바가 배너 위로)
           root.setProperty("--tab-safe", "0px");                      // 탭바 자체 네비바 여백 제거(중복 방지)
