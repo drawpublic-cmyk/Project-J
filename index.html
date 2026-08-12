@@ -889,7 +889,7 @@
     .trip-head { padding-top: calc(14px + env(safe-area-inset-top)); }
     .sos-header { padding-top: env(safe-area-inset-top); height: calc(72px + env(safe-area-inset-top)); }
     .page { padding-top: calc(8px + env(safe-area-inset-top)); padding-bottom: calc(86px + env(safe-area-inset-bottom)); }
-    .tabs { height: calc(76px + env(safe-area-inset-bottom)); padding-bottom: env(safe-area-inset-bottom); }
+    .tabs { height: calc(76px + var(--tab-safe, env(safe-area-inset-bottom))); padding-bottom: var(--tab-safe, env(safe-area-inset-bottom)); }
   </style>
 </head>
 <body>
@@ -1314,10 +1314,22 @@
        유니티(안드로이드 Game ID 6169679)는 AdMob 대시보드에서 미디에이션 소스로 추가(코드 변경 없음). */
     const ADMOB_BANNER_ID = "ca-app-pub-3940256099942544/6300978111"; // 구글 공식 테스트 배너(Android)
     const BANNER_SCREENS = ["map", "list", "fav", "settings"];        // 탐색 화면만 배너. 긴급/몰입(온보딩·상세·길안내·버스도착·SOS·검색)은 숨김
-    let admobReady = false, bannerShown = false, lastScreenForBanner = "";
+    const BANNER_H = 50;   // AdMob BANNER 표준 높이(dp)
+    let admobReady = false, bannerShown = false, lastScreenForBanner = "", navInset = 0;
     const _AdMob = () => window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.AdMob;
+    // 시스템 네비게이션 바(제스처/버튼) 높이 측정 — 배너를 그 위로 올려 겹침·오클릭 방지
+    function measureNavInset() {
+      try {
+        const d = document.createElement("div");
+        d.style.cssText = "position:fixed;left:0;bottom:0;width:1px;height:env(safe-area-inset-bottom);visibility:hidden;pointer-events:none;";
+        document.body.appendChild(d);
+        navInset = d.offsetHeight || 0;
+        d.remove();
+      } catch (e) { navInset = 0; }
+    }
     async function initAdMob() {
       const A = _AdMob(); if (!A) return;   // 웹/미지원이면 스킵
+      measureNavInset();
       try { await A.initialize({ initializeForTesting: true }); admobReady = true; updateBanner(lastScreenForBanner); }
       catch (e) { console.warn("[존급] AdMob 초기화 실패:", e); }
     }
@@ -1325,15 +1337,20 @@
       lastScreenForBanner = screen;
       const A = _AdMob(); if (!A || !admobReady) return;
       const want = BANNER_SCREENS.includes(screen);
+      const root = document.documentElement.style;
       try {
         if (want && !bannerShown) {
-          document.documentElement.style.setProperty("--ad-h", "52px");   // 앱을 배너 높이만큼 올려 탭바 안 가리게
-          await A.showBanner({ adId: ADMOB_BANNER_ID, adSize: "BANNER", position: "BOTTOM_CENTER", margin: 0, isTesting: true });
+          measureNavInset();   // 표시 직전 최신 네비바 높이 확보(초기 측정 0이던 경우 보정)
+          // 아래→위 순서: [시스템 네비바] → [광고 배너] → [탭바] → [콘텐츠]
+          root.setProperty("--ad-h", (BANNER_H + navInset) + "px");   // 앱을 배너+네비바 만큼 올림(탭바가 배너 위로)
+          root.setProperty("--tab-safe", "0px");                      // 탭바 자체 네비바 여백 제거(중복 방지)
+          await A.showBanner({ adId: ADMOB_BANNER_ID, adSize: "BANNER", position: "BOTTOM_CENTER", margin: navInset, isTesting: true });  // 배너를 네비바 위로
           bannerShown = true;
-          if (kmap.ready) setTimeout(() => kmap.relayout(), 50);          // 높이 바뀐 뒤 지도 다시 맞춤
+          if (kmap.ready) setTimeout(() => kmap.relayout(), 60);      // 높이 바뀐 뒤 지도 다시 맞춤
         } else if (!want && bannerShown) {
           await A.hideBanner(); bannerShown = false;
-          document.documentElement.style.setProperty("--ad-h", "0px");
+          root.setProperty("--ad-h", "0px");
+          root.removeProperty("--tab-safe");                          // 탭바 네비바 여백 원복(env로)
         }
       } catch (e) { console.warn("[존급] 배너 표시 오류:", e); }
     }
