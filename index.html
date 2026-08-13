@@ -1341,7 +1341,8 @@
             if (!bannerShown || !s || !s.height) return;
             let h = Math.round(s.height);
             if (h > 120) h = Math.round(h / (window.devicePixelRatio || 1));   // px로 온 경우 dp로 환산
-            document.documentElement.style.setProperty("--ad-h", (h + 14) + "px");   // 배너 실제높이+여유
+            // 100dvh가 네비바까지 포함하므로 배너높이+네비바+여유로 예약해야 탭바가 배너 위로 올라감
+            document.documentElement.style.setProperty("--ad-h", (h + navInset + 14) + "px");
             if (kmap.ready) setTimeout(() => kmap.relayout(), 50);
           });
         } catch (e) {}
@@ -1358,8 +1359,8 @@
           measureNavInset();   // 표시 직전 최신 네비바 높이 확보
           // 아래→위 순서: [시스템 네비바] → [광고 배너] → [탭바] → [콘텐츠]
           // 웹뷰(100dvh)는 이미 네비바 위에 있으므로 --ad-h엔 배너 높이만(네비바 더하면 이중계산). 배너는 margin으로 네비바 위로.
-          // 초기 예약(이벤트 오기 전). 넉넉히 잡아 60dp adaptive 배너도 안 겹치게. 실제높이는 bannerAdSizeChanged가 보정.
-          root.setProperty("--ad-h", "74px");
+          // 초기 예약(이벤트 오기 전) = 배너높이+네비바+여유. 실제높이는 bannerAdSizeChanged가 보정.
+          root.setProperty("--ad-h", (BANNER_H + navInset + 20) + "px");
           root.setProperty("--tab-safe", "0px");                      // 탭바 자체 네비바 여백 제거(중복 방지)
           await A.showBanner({ adId: ADMOB_BANNER_ID, adSize: "BANNER", position: "BOTTOM_CENTER", margin: navInset, isTesting: true });  // 배너를 네비바 위로
           bannerShown = true;
