@@ -1332,8 +1332,21 @@
     async function initAdMob() {
       const A = _AdMob(); if (!A) return;   // 웹/미지원이면 스킵
       measureNavInset();
-      try { await A.initialize({ initializeForTesting: true }); admobReady = true; updateBanner(lastScreenForBanner); }
-      catch (e) { console.warn("[존급] AdMob 초기화 실패:", e); }
+      try {
+        await A.initialize({ initializeForTesting: true });
+        admobReady = true;
+        // 배너 실제 크기를 받아 예약 높이를 동적으로 맞춤(320x50/468x60/adaptive 등 크기가 달라도 안 겹침)
+        try {
+          A.addListener("bannerAdSizeChanged", (s) => {
+            if (!bannerShown || !s || !s.height) return;
+            let h = Math.round(s.height);
+            if (h > 120) h = Math.round(h / (window.devicePixelRatio || 1));   // px로 온 경우 dp로 환산
+            document.documentElement.style.setProperty("--ad-h", (h + 8) + "px");
+            if (kmap.ready) setTimeout(() => kmap.relayout(), 50);
+          });
+        } catch (e) {}
+        updateBanner(lastScreenForBanner);
+      } catch (e) { console.warn("[존급] AdMob 초기화 실패:", e); }
     }
     async function updateBanner(screen) {
       lastScreenForBanner = screen;
