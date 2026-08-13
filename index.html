@@ -1345,7 +1345,8 @@
           measureNavInset();   // 표시 직전 최신 네비바 높이 확보
           // 아래→위 순서: [시스템 네비바] → [광고 배너] → [탭바] → [콘텐츠]
           // 웹뷰(100dvh)는 이미 네비바 위에 있으므로 --ad-h엔 배너 높이만(네비바 더하면 이중계산). 배너는 margin으로 네비바 위로.
-          root.setProperty("--ad-h", BANNER_H + "px");
+          // +8px는 탭바 라벨이 배너에 붙지 않게 하는 여유 간격.
+          root.setProperty("--ad-h", (BANNER_H + 8) + "px");
           root.setProperty("--tab-safe", "0px");                      // 탭바 자체 네비바 여백 제거(중복 방지)
           await A.showBanner({ adId: ADMOB_BANNER_ID, adSize: "BANNER", position: "BOTTOM_CENTER", margin: navInset, isTesting: true });  // 배너를 네비바 위로
           bannerShown = true;
