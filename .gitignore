@@ -15,5 +15,9 @@ _kakaotest.html
 *.log
 node_modules/
 
+# Android/Gradle local build caches
+mobile/android/.android-user/
+mobile/android/.gradle-home/
+
 # 화장실 지오코딩 캐시(재생성 가능, 용량 큼)
 .toilet-geocache.json
