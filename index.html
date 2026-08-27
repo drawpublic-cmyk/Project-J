@@ -548,11 +548,12 @@
     .detail-hero a.photo-link.corner { position: absolute; bottom: 12px; right: 14px; padding: 7px 12px; font-size: 12px; z-index: 2; }
     .top-icons {
       position: absolute;
-      top: 12px;
+      top: calc(12px + env(safe-area-inset-top));   /* 상태바 아래로: 안 그러면 뒤로가기 버튼이 상태바에 가려 안 보임 */
       left: 14px;
       right: 14px;
       display: flex;
       justify-content: space-between;
+      z-index: 3;   /* .detail-hero a.photo-link.corner(z-index:2)보다 위에 확실히 표시 */
     }
     .icon-btn {
       width: 42px;
@@ -603,53 +604,6 @@
     .info-row:last-child { border-bottom: 0; padding-bottom: 0; }
     .info-row span:first-child { color: rgba(26,26,26,.6); }
     .phone-icon { color: var(--pink-accent); font-weight: 950; }
-
-    /* ---------- 길찾기 ---------- */
-    .route-map {
-      position: absolute;
-      inset: 44px 0 0;
-      background:
-        linear-gradient(90deg, transparent 34px, rgba(26,26,26,.06) 35px, transparent 36px),
-        linear-gradient(transparent 44px, rgba(26,26,26,.05) 45px, transparent 46px),
-        var(--map-bg);
-      background-size: 80px 80px;
-    }
-    .route-line {
-      position: absolute;
-      left: 112px;
-      top: 190px;
-      width: 3px;
-      height: 330px;
-      background: var(--brand-green);
-      transform: rotate(28deg);
-      transform-origin: top;
-      border-radius: 4px;
-    }
-    .route-banner {
-      position: absolute;
-      top: 70px;
-      left: 20px;
-      right: 20px;
-      background: var(--brand-green);
-      color: #fff;
-      border-radius: 18px;
-      padding: 16px;
-      font-weight: 950;
-      box-shadow: var(--shadow);
-    }
-    .route-bottom {
-      position: absolute;
-      left: 16px;
-      right: 16px;
-      bottom: 22px;
-      display: grid;
-      grid-template-columns: 1fr auto;
-      align-items: center;
-      background: var(--cream);
-      border: 1px solid var(--line);
-      border-radius: 18px;
-      padding: 14px;
-    }
 
     /* ---------- 검색 ---------- */
     .search-page { padding-top: 10px; }
@@ -947,7 +901,7 @@
           <div class="place-title"><span><span id="cardType" data-ic="toilet" data-ic-size="16"></span> <span id="cardName">롯데리아 광화문점</span></span><span class="dist" id="cardDistance">52m</span></div>
           <div class="meta" id="cardMeta">도보 1분 · 24시간 · 남/녀</div>
           <div class="row-actions">
-            <button class="mini-btn cta" data-goto="route" id="cardRoute">길 안내</button>
+            <button class="mini-btn cta" id="cardRoute">길 안내</button>
             <button class="mini-btn" id="cardDetail">상세</button>
           </div>
         </article>
@@ -1014,7 +968,7 @@
             </div>
             <h3 id="detailInfoTitle">화장실 정보</h3>
             <div class="info-list" id="detailInfo"></div>
-            <button class="primary" style="width:100%" data-goto="route">길안내 시작 →</button>
+            <button class="primary" style="width:100%" id="detailRoute">길안내 시작 →</button>
           </div>
         </div>
         <nav class="tabs">
@@ -1023,20 +977,6 @@
           <button class="tab" data-goto="fav"><b>♡</b>즐겨찾기</button>
           <button class="tab" data-goto="settings"><b>⚙</b>설정</button>
         </nav>
-      </section>
-
-      <!-- 10. 길찾기 -->
-      <section class="screen" data-screen="route">
-        <div class="route-map">
-          <div class="route-line"></div>
-          <div class="pin bus" style="left:74px;top:492px"><span style="display:block;width:8px;height:8px;background:#fff;border-radius:50%"></span></div>
-          <div class="pin toilet" data-kind="toilet" style="left:226px;top:118px"><span></span></div>
-          <div class="route-banner">↰ 좌회전 후 직진<br><small>28m 앞, 스타벅스 서울역점</small></div>
-          <div class="route-bottom">
-            <div><b class="dist">1분 · 38m</b><div class="meta">남은 거리</div></div>
-            <button class="mini-btn" data-goto="map">중단</button>
-          </div>
-        </div>
       </section>
 
       <!-- 11. 검색 -->
@@ -1145,7 +1085,7 @@
             <div class="metric">24h<span>개방</span></div>
           </div>
           <div class="item-tags"><span class="pill">남/녀</span><span class="pill">휠체어 OK</span><span class="pill">비데</span></div>
-          <button class="primary" style="width:100%;margin-top:22px" data-goto="route">👉 지금 바로 안내</button>
+          <button class="primary" style="width:100%;margin-top:22px" id="sosRoute">👉 지금 바로 안내</button>
           <button class="ghost" style="width:100%;margin-top:10px" data-goto="list">다음으로 가까운 3곳 보기 ↓</button>
         </div>
       </section>
@@ -1315,23 +1255,10 @@
     const ADMOB_BANNER_ID = "ca-app-pub-3940256099942544/6300978111"; // 구글 공식 테스트 배너(Android)
     const BANNER_SCREENS = ["map", "list", "fav", "settings"];        // 탐색 화면만 배너. 긴급/몰입(온보딩·상세·길안내·버스도착·SOS·검색)은 숨김
     const BANNER_H = 50;   // AdMob BANNER 표준 높이(dp)
-    let admobReady = false, bannerShown = false, lastScreenForBanner = "", navInset = 0;
+    let admobReady = false, bannerShown = false, lastScreenForBanner = "";
     const _AdMob = () => window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.AdMob;
-    // 시스템 네비게이션 바(제스처/버튼) 높이 측정(dp) — 배너를 그 위로 올려 겹침·오클릭 방지.
-    // 안드로이드 WebView는 env(safe-area-inset-bottom)가 0이라, screen−inner 차이로 잡음(iOS는 env 사용).
-    function measureNavInset() {
-      let env = 0;
-      try {
-        const d = document.createElement("div");
-        d.style.cssText = "position:fixed;left:0;bottom:0;width:1px;height:env(safe-area-inset-bottom);visibility:hidden;pointer-events:none;";
-        document.body.appendChild(d); env = d.offsetHeight || 0; d.remove();
-      } catch (e) {}
-      const diff = Math.round((window.screen.height || 0) - (window.innerHeight || 0));  // 네비바만큼 차이남
-      navInset = Math.max(env, (diff > 4 && diff < 80) ? diff : 0);   // 이상값 방지(0~80dp)
-    }
     async function initAdMob() {
       const A = _AdMob(); if (!A) return;   // 웹/미지원이면 스킵
-      measureNavInset();
       try {
         await A.initialize({ initializeForTesting: true });
         admobReady = true;
@@ -1341,8 +1268,9 @@
             if (!bannerShown || !s || !s.height) return;
             let h = Math.round(s.height);
             if (h > 120) h = Math.round(h / (window.devicePixelRatio || 1));   // px로 온 경우 dp로 환산
-            // 100dvh가 네비바까지 포함하므로 배너높이+네비바+여유로 예약해야 탭바가 배너 위로 올라감
-            document.documentElement.style.setProperty("--ad-h", (h + navInset + 14) + "px");
+            // WebView(100dvh)는 이미 시스템 네비바 위로 자동 배제돼 있음(안드로이드가 처리) → 배너높이+여유만 예약.
+            // navInset을 더 더하면 이중계산돼 배너-네비바 사이 빈 공간이 생김(3버튼 모드에서 특히 큼).
+            document.documentElement.style.setProperty("--ad-h", (h + 14) + "px");
             if (kmap.ready) setTimeout(() => kmap.relayout(), 50);
           });
         } catch (e) {}
@@ -1356,13 +1284,12 @@
       const root = document.documentElement.style;
       try {
         if (want && !bannerShown) {
-          measureNavInset();   // 표시 직전 최신 네비바 높이 확보
-          // 아래→위 순서: [시스템 네비바] → [광고 배너] → [탭바] → [콘텐츠]
-          // 웹뷰(100dvh)는 이미 네비바 위에 있으므로 --ad-h엔 배너 높이만(네비바 더하면 이중계산). 배너는 margin으로 네비바 위로.
-          // 초기 예약(이벤트 오기 전) = 배너높이+네비바+여유. 실제높이는 bannerAdSizeChanged가 보정.
-          root.setProperty("--ad-h", (BANNER_H + navInset + 20) + "px");
+          // 아래→위 순서: [시스템 네비바(안드로이드가 자동 배제)] → [광고 배너] → [탭바] → [콘텐츠]
+          // WebView(100dvh)는 이미 시스템 네비바(제스처든 3버튼이든) 위로 뷰포트가 잡혀 있어 별도 margin/보정 불필요.
+          // 초기 예약(이벤트 오기 전, 실제높이는 bannerAdSizeChanged가 곧 보정)
+          root.setProperty("--ad-h", (BANNER_H + 20) + "px");
           root.setProperty("--tab-safe", "0px");                      // 탭바 자체 네비바 여백 제거(중복 방지)
-          await A.showBanner({ adId: ADMOB_BANNER_ID, adSize: "BANNER", position: "BOTTOM_CENTER", margin: navInset, isTesting: true });  // 배너를 네비바 위로
+          await A.showBanner({ adId: ADMOB_BANNER_ID, adSize: "BANNER", position: "BOTTOM_CENTER", margin: 0, isTesting: true });
           bannerShown = true;
           if (kmap.ready) setTimeout(() => kmap.relayout(), 60);      // 높이 바뀐 뒤 지도 다시 맞춤
         } else if (!want && bannerShown) {
@@ -1734,7 +1661,7 @@
         if (el.__bound) return; el.__bound = true;
         el.addEventListener("click", () => {
           if (el.dataset.locate) requestLocation();
-          show(el.dataset.goto);
+          if (el.dataset.goto) show(el.dataset.goto);   // 빈 값이면 화면전환 생략(안전가드)
         });
       });
     }
@@ -1774,8 +1701,7 @@
       document.getElementById("cardDistance").textContent = first.distance + "m";
       document.getElementById("cardMeta").textContent = first.meta;
       const routeBtn = document.getElementById("cardRoute");
-      routeBtn.dataset.goto = first.kind === "bus" ? "bus" : "route";   // 버스=도착화면, 그외=길안내(지하철도 길안내 유지)
-      routeBtn.onclick = first.kind === "bus" ? (() => openBus(first)) : null;
+      routeBtn.onclick = first.kind === "bus" ? (() => openBus(first)) : (() => goDirections(first));   // 버스=도착화면(openBus가 자체 전환), 그외=바로 길안내
       const detailBtn = document.getElementById("cardDetail");
       detailBtn.onclick = () => openPlace(first);                        // 상세: 지하철·버스=도착정보, 그외=상세
       detailBtn.textContent = (first.kind === "bus" || first.kind === "subway") ? "도착정보" : "상세";
@@ -2076,6 +2002,17 @@
     // 정확한 경로는 카카오맵/네이버 길찾기 엔진으로 연결(무료·정확). 우리는 역 검색만 담당
     function stnName(n) { return (n || "").replace(/역$/, "") + "역"; }   // '강남'→'강남역', '서울역'→'서울역'
     function kakaoDir(a, b) { return `https://map.kakao.com/?sName=${encodeURIComponent(stnName(a))}&eName=${encodeURIComponent(stnName(b))}`; }
+    // 장소(화장실·편의점·프린터 등) 길안내 — 좌표 있으면 목적지 지정 딥링크, 없으면 이름 검색으로 폴백
+    function kakaoDirTo(place) {
+      if (!place) return null;
+      const name = place.name || "목적지";
+      if (place.lat && place.lng) return `https://map.kakao.com/link/to/${encodeURIComponent(name)},${place.lat},${place.lng}`;
+      return `https://map.kakao.com/link/search/${encodeURIComponent(name)}`;
+    }
+    function goDirections(place) {
+      const url = kakaoDirTo(place);
+      if (url) openExternal(url); else alert("길안내 정보를 찾을 수 없어요.");
+    }
     function naverDir(f, t) {
       return `https://map.naver.com/p/directions/${f.lng},${f.lat},${encodeURIComponent(stnName(f.name))},,/${t.lng},${t.lat},${encodeURIComponent(stnName(t.name))},,/-/transit`;
     }
@@ -3050,6 +2987,10 @@
     }
     function closeInfo() { document.getElementById("infoModal").classList.remove("open"); }
     document.querySelectorAll("#infoModal .backdrop, #infoModal .close").forEach(el => el.addEventListener("click", closeInfo));
+    // 상세 화면 '길안내 시작' — 지금 보고 있는 장소로 실제 카카오맵 길찾기
+    document.getElementById("detailRoute")?.addEventListener("click", () => goDirections(currentDetail));
+    // SOS 화면 '지금 바로 안내' — SOS 카드 자체가 아직 목업 데이터라 좌표가 없어, 근처 화장실 검색으로 대체
+    document.getElementById("sosRoute")?.addEventListener("click", () => openExternal("https://map.kakao.com/link/search/" + encodeURIComponent("화장실")));
     // 설정 항목 클릭
     document.querySelectorAll(".settings-item").forEach(el => el.addEventListener("click", async () => {
       const act = el.dataset.act, key = el.dataset.link;
@@ -3110,8 +3051,8 @@
     document.querySelectorAll("[data-locate]:not([data-goto])").forEach(b => b.addEventListener("click", requestLocation));
     enableDragScroll(document.getElementById("filterChips"));
     enableDragScroll(document.getElementById("listChips"));
-    // URL 해시로 특정 화면 바로 보기 (#map, #list, #detail, #route, #search, #bus, #sos)
-    const screens = ["splash","onboard","map","list","fav","detail","route","search","bus","busline","trip","settings","sos"];
+    // URL 해시로 특정 화면 바로 보기 (#map, #list, #detail, #search, #bus, #sos)
+    const screens = ["splash","onboard","map","list","fav","detail","search","bus","busline","trip","settings","sos"];
     const fromHash = location.hash.replace("#", "");
     // 인앱 브라우저(약관 등)를 닫으면 안드로이드가 앱을 재로드해 온보딩으로 돌아가는 문제 방지:
     // 최근(10분 내) 있던 화면이 자체완결 화면(설정·즐겨찾기·지도)이면 그 화면으로 복원.
