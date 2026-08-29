@@ -405,7 +405,7 @@
       display: grid;
       grid-template-columns: repeat(4, 1fr);
       border-top: 1px solid var(--line);
-      background: rgba(253,252,247,.96);
+      background: var(--cream);   /* 완전 불투명(예전 96% 반투명은 스크롤 콘텐츠가 살짝 비쳐 보이는 원인이었음) */
       z-index: 12;
     }
     .tab {
@@ -1270,7 +1270,7 @@
             if (h > 120) h = Math.round(h / (window.devicePixelRatio || 1));   // px로 온 경우 dp로 환산
             // WebView(100dvh)는 이미 시스템 네비바 위로 자동 배제돼 있음(안드로이드가 처리) → 배너높이+여유만 예약.
             // navInset을 더 더하면 이중계산돼 배너-네비바 사이 빈 공간이 생김(3버튼 모드에서 특히 큼).
-            document.documentElement.style.setProperty("--ad-h", (h + 14) + "px");
+            document.documentElement.style.setProperty("--ad-h", (h + 20) + "px");
             if (kmap.ready) setTimeout(() => kmap.relayout(), 50);
           });
         } catch (e) {}
@@ -1284,10 +1284,13 @@
       const root = document.documentElement.style;
       try {
         if (want && !bannerShown) {
-          // 아래→위 순서: [시스템 네비바(안드로이드가 자동 배제)] → [광고 배너] → [탭바] → [콘텐츠]
+          // 아래→위 순서: [시스템 네비바(안드로이드가 자동 배제)] → [광고 배너(네이티브 뷰)] → [탭바] → [콘텐츠]
           // WebView(100dvh)는 이미 시스템 네비바(제스처든 3버튼이든) 위로 뷰포트가 잡혀 있어 별도 margin/보정 불필요.
-          // 초기 예약(이벤트 오기 전, 실제높이는 bannerAdSizeChanged가 곧 보정)
-          root.setProperty("--ad-h", (BANNER_H + 20) + "px");
+          // 광고는 CSS가 아닌 네이티브 뷰라 실제 크기를 로드 전엔 모름(bannerAdSizeChanged가 나중에 알려줌).
+          // 그 전까지 예약을 너무 작게 잡으면 실제 광고가 더 크게 뜰 때 우리 콘텐츠 일부가 광고 뒤로
+          // 밀려들어가 탭바(96% 불투명) 틈으로 살짝 비쳐 보이는 문제가 있었음 → 초기값을 넉넉히(최대
+          // 예상 배너 크기 기준) 잡아 절대 부족하지 않게 하고, 실제 크기 확인되면 위 리스너가 줄여줌.
+          root.setProperty("--ad-h", "100px");
           root.setProperty("--tab-safe", "0px");                      // 탭바 자체 네비바 여백 제거(중복 방지)
           await A.showBanner({ adId: ADMOB_BANNER_ID, adSize: "BANNER", position: "BOTTOM_CENTER", margin: 0, isTesting: true });
           bannerShown = true;
