@@ -1452,6 +1452,12 @@
     let currentBus = null;       // 현재 보고 있는 정류소/역
     let currentMode = "bus";     // "bus" | "subway"
     let currentArrivals = [];    // 현재 화면에 뜬 도착 목록(노선 타임라인에서 재사용)
+    let selectedPlace = null;    // 지도에서 핀을 눌러 하단 안내바에 띄운 장소(눌러도 바로 상세로 안 들어감)
+    // 핀 클릭: 바로 상세로 안 들어가고 하단 안내바만 그 장소로 바꿔줌 — 상세는 안내바의 '상세' 버튼으로
+    function selectPlace(p) {
+      selectedPlace = p;
+      updateCard(p);
+    }
     // 클릭 진입 분기: 종류에 맞는 화면으로
     function openPlace(p) {
       if (p.kind === "busroute") return openBus(reStop(p));
@@ -1697,17 +1703,24 @@
         // 선택 카테고리만 표시(전체면 다), 나머지는 숨김 — 흐리기만 하지 않고 완전 필터
         pin.style.display = (activeFilter === "all" || pin.dataset.kind === activeFilter) ? "" : "none";
       });
-      const first = visiblePlaces()[0] || places[0];
-      if (!first) return;
-      document.getElementById("cardType").innerHTML = iconSvg(first.kind, 16);
-      document.getElementById("cardName").textContent = first.name;
-      document.getElementById("cardDistance").textContent = first.distance + "m";
-      document.getElementById("cardMeta").textContent = first.meta;
+      // 선택된 핀이 이번 검색결과에도 여전히 있으면 유지, 아니면(새 검색·필터 변경) 가장 가까운 곳으로
+      const visible = visiblePlaces();
+      const shown = (selectedPlace && visible.includes(selectedPlace)) ? selectedPlace : (visible[0] || places[0]);
+      if (!shown) return;
+      selectedPlace = shown;
+      updateCard(shown);
+    }
+    // 하단 안내바(place-card) 내용을 place로 채움 — 핀 클릭(selectPlace)·기본표시(renderMap) 공용
+    function updateCard(place) {
+      document.getElementById("cardType").innerHTML = iconSvg(place.kind, 16);
+      document.getElementById("cardName").textContent = place.name;
+      document.getElementById("cardDistance").textContent = place.distance + "m";
+      document.getElementById("cardMeta").textContent = place.meta;
       const routeBtn = document.getElementById("cardRoute");
-      routeBtn.onclick = first.kind === "bus" ? (() => openBus(first)) : (() => goDirections(first));   // 버스=도착화면(openBus가 자체 전환), 그외=바로 길안내
+      routeBtn.onclick = place.kind === "bus" ? (() => openBus(place)) : (() => goDirections(place));   // 버스=도착화면(openBus가 자체 전환), 그외=바로 길안내
       const detailBtn = document.getElementById("cardDetail");
-      detailBtn.onclick = () => openPlace(first);                        // 상세: 지하철·버스=도착정보, 그외=상세
-      detailBtn.textContent = (first.kind === "bus" || first.kind === "subway") ? "도착정보" : "상세";
+      detailBtn.onclick = () => openPlace(place);                        // 상세: 지하철·버스=도착정보, 그외=상세
+      detailBtn.textContent = (place.kind === "bus" || place.kind === "subway") ? "도착정보" : "상세";
     }
 
     // 장소 리스트(하트 포함)를 컨테이너에 렌더 — 리스트/즐겨찾기 공용
@@ -2359,7 +2372,7 @@
         const elPin = document.createElement("div");
         elPin.innerHTML = pinHtml(place.kind);
         elPin.style.cursor = "pointer";
-        elPin.addEventListener("click", () => openPlace(place));
+        elPin.addEventListener("click", () => selectPlace(place));
         kmap.overlays.push(new window.kakao.maps.CustomOverlay({
           map: kmap.map, position: new window.kakao.maps.LatLng(lat, lng), content: elPin, yAnchor: 1, clickable: true
         }));
