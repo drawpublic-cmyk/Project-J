@@ -2051,31 +2051,41 @@
         if (url) openExternal(url); else alert("길안내 정보를 찾을 수 없어요.");
         return;
       }
+      const wasHidden = document.querySelector('.screen[data-screen="map"]:not(.active)');
       show("map");
-      clearRoute();
-      const myPos = kmap.meOverlay.getPosition();
-      const from = { lat: myPos.getLat(), lng: myPos.getLng() };
-      const to = { lat: Number(place.lat), lng: Number(place.lng) };
-      mapStatus("도보 경로 불러오는 중…");
-      let path, label, type = "ok";
+      // detail 등 다른 화면에서 넘어온 경우 지도 컨테이너가 display:none이었다 방금 켜진 상태라
+      // 카카오맵 내부 크기 계산이 아직 안 끝났을 수 있음 — relayout이 자리잡을 시간을 한 틱 줌
+      if (wasHidden) { kmap.relayout(); await new Promise(r => setTimeout(r, 80)); }
       try {
-        const route = await fetchWalkRoute(from, to);
-        path = route.coords.map(c => new window.kakao.maps.LatLng(c.lat, c.lng));
-        label = `🚶 ${place.name}까지 ${fmtDist(route.distanceM)} · 도보 ${Math.max(1, Math.round(route.durationSec / 60))}분`;
+        clearRoute();
+        const myPos = kmap.meOverlay.getPosition();
+        const from = { lat: myPos.getLat(), lng: myPos.getLng() };
+        const to = { lat: Number(place.lat), lng: Number(place.lng) };
+        mapStatus("도보 경로 불러오는 중…");
+        let path, label, type = "ok";
+        try {
+          const route = await fetchWalkRoute(from, to);
+          path = route.coords.map(c => new window.kakao.maps.LatLng(c.lat, c.lng));
+          label = `🚶 ${place.name}까지 ${fmtDist(route.distanceM)} · 도보 ${Math.max(1, Math.round(route.durationSec / 60))}분`;
+        } catch (e) {
+          // 경로 API 실패 시 직선거리로 대체 표시
+          path = [new window.kakao.maps.LatLng(from.lat, from.lng), new window.kakao.maps.LatLng(to.lat, to.lng)];
+          label = `🚶 ${place.name}까지 직선거리 약 ${fmtDist(haversine(from.lat, from.lng, to.lat, to.lng))} (경로 계산 실패)`;
+          type = "err";
+        }
+        routeLine = new window.kakao.maps.Polyline({
+          map: kmap.map, path, strokeWeight: 5, strokeColor: "#06530B", strokeOpacity: .85,
+          strokeStyle: type === "err" ? "shortdash" : "solid"
+        });
+        const bounds = new window.kakao.maps.LatLngBounds();
+        path.forEach(p => bounds.extend(p));
+        kmap.map.setBounds(bounds);
+        mapStatus(label, type);
       } catch (e) {
-        // 경로 API 실패 시 직선거리로 대체 표시
-        path = [new window.kakao.maps.LatLng(from.lat, from.lng), new window.kakao.maps.LatLng(to.lat, to.lng)];
-        label = `🚶 ${place.name}까지 직선거리 약 ${fmtDist(haversine(from.lat, from.lng, to.lat, to.lng))} (경로 계산 실패)`;
-        type = "err";
+        console.warn("[존급] 길안내 경로 표시 실패:", e);
+        mapStatus("길안내 경로를 표시하지 못했어요.", "err");
+        setTimeout(() => mapStatus(null), 2500);
       }
-      routeLine = new window.kakao.maps.Polyline({
-        map: kmap.map, path, strokeWeight: 5, strokeColor: "#06530B", strokeOpacity: .85,
-        strokeStyle: type === "err" ? "shortdash" : "solid"
-      });
-      const bounds = new window.kakao.maps.LatLngBounds();
-      path.forEach(p => bounds.extend(p));
-      kmap.map.setBounds(bounds);
-      mapStatus(label, type);
     }
     function naverDir(f, t) {
       return `https://map.naver.com/p/directions/${f.lng},${f.lat},${encodeURIComponent(stnName(f.name))},,/${t.lng},${t.lat},${encodeURIComponent(stnName(t.name))},,/-/transit`;
