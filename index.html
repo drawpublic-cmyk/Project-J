@@ -1308,7 +1308,9 @@
         }
       } catch (e) { console.warn("[존급] 배너 표시 오류:", e); }
     }
-    initAdMob();
+    // 광고 배너 비활성화 — 네이티브 배너 실제 높이와 CSS 예약값이 어긋나 UI가 깨지는 문제가 있어 잠정 제거.
+    // 다시 켜려면 아래 initAdMob() 주석을 풀면 됨(로직은 그대로 둠).
+    // initAdMob();
 
     /* ---------- 아이콘 (인라인 SVG line set, currentColor 상속) ---------- */
     // Map Icon Set 기준: 볼드 채움(흰 글리프) 스타일. 흰색은 currentColor(핀/뱃지=흰색) 상속
