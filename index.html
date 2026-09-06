@@ -1669,6 +1669,7 @@
       if (screen === "search") { renderRecent(); const sb = document.getElementById("searchBox"); if (sb) setTimeout(() => sb.focus(), 50); }
       if (screen === "trip") ensureStations();     // 역 목록 준비(검색용)
       if (screen !== "busline") stopLinePoll();   // 노선 화면 벗어나면 자동갱신 중단
+      if (screen !== "map") stopRouteWatch();     // 지도 벗어나면 도착 알림 추적 중단
       updateBanner(screen);                        // 하단 광고 배너 표시/숨김(탐색 화면만)
       // 현재 화면 기억 — 인앱 브라우저 등으로 앱이 재로드돼도 있던 화면으로 복원(온보딩으로 안 돌아가게)
       try { if (screen !== "splash") localStorage.setItem("jongeup_lastScreen", JSON.stringify({ s: screen, t: Date.now() })); } catch (e) {}
@@ -2035,7 +2036,37 @@
     }
     // 도보 경로선(우리 지도 위에 직접 그림) — OSRM 데모 서버(무료·키 불필요, foot 프로필)
     let routeLine = null;
+    let routeGen = 0;        // 길안내 중복 실행 방지: 매 호출마다 증가, 최신 호출 결과만 그려짐
+    let routeWatchId = null;
+    const ARRIVE_RADIUS_M = 30;   // 이 반경 안으로 들어오면 도착 알림
     function clearRoute() { if (routeLine) { routeLine.setMap(null); routeLine = null; } }
+    function stopRouteWatch() {
+      if (routeWatchId == null) return;
+      const Geo = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Geolocation;
+      try {
+        if (Geo && Geo.clearWatch) Geo.clearWatch({ id: routeWatchId });
+        else if (navigator.geolocation) navigator.geolocation.clearWatch(routeWatchId);
+      } catch (e) {}
+      routeWatchId = null;
+    }
+    // 길안내 중 위치 추적 → 목적지 반경 안으로 들어오면 도착 알림(1회) 후 추적 종료
+    async function startRouteWatch(place, myGen) {
+      stopRouteWatch();
+      const onPos = pos => {
+        if (myGen !== routeGen || !pos || !pos.coords) return;   // 그 사이 새 길안내가 시작됐으면 무시
+        const d = haversine(pos.coords.latitude, pos.coords.longitude, Number(place.lat), Number(place.lng));
+        if (d <= ARRIVE_RADIUS_M) {
+          alert(`🚩 ${place.name} 근처에 도착했어요!`);
+          stopRouteWatch();
+        }
+      };
+      const opt = { enableHighAccuracy: true, timeout: 8000, maximumAge: 5000 };
+      const Geo = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Geolocation;
+      try {
+        if (Geo && Geo.watchPosition) routeWatchId = await Geo.watchPosition(opt, onPos);
+        else if (navigator.geolocation) routeWatchId = navigator.geolocation.watchPosition(onPos, () => {}, opt);
+      } catch (e) { console.warn("[존급] 도착 알림 추적 실패:", e); }
+    }
     async function fetchWalkRoute(from, to) {
       const url = `https://router.project-osrm.org/route/v1/foot/${from.lng},${from.lat};${to.lng},${to.lat}?overview=full&geometries=geojson`;
       const res = await fetch(url);
@@ -2053,6 +2084,7 @@
         if (url) openExternal(url); else alert("길안내 정보를 찾을 수 없어요.");
         return;
       }
+      const myGen = ++routeGen;   // 길안내를 여러 번 눌러도 마지막 호출 결과만 남도록
       const wasHidden = document.querySelector('.screen[data-screen="map"]:not(.active)');
       show("map");
       // detail 등 다른 화면에서 넘어온 경우 지도 컨테이너가 display:none이었다 방금 켜진 상태라
@@ -2060,6 +2092,7 @@
       if (wasHidden) { kmap.relayout(); await new Promise(r => setTimeout(r, 80)); }
       try {
         clearRoute();
+        stopRouteWatch();
         const myPos = kmap.meOverlay.getPosition();
         const from = { lat: myPos.getLat(), lng: myPos.getLng() };
         const to = { lat: Number(place.lat), lng: Number(place.lng) };
@@ -2075,6 +2108,7 @@
           label = `🚶 ${place.name}까지 직선거리 약 ${fmtDist(haversine(from.lat, from.lng, to.lat, to.lng))} (경로 계산 실패)`;
           type = "err";
         }
+        if (myGen !== routeGen) return;   // 그 사이 더 최신 길안내가 시작됨 → 이 결과는 버림
         routeLine = new window.kakao.maps.Polyline({
           map: kmap.map, path, strokeWeight: 5, strokeColor: "#06530B", strokeOpacity: .85,
           strokeStyle: type === "err" ? "shortdash" : "solid"
@@ -2083,10 +2117,10 @@
         path.forEach(p => bounds.extend(p));
         kmap.map.setBounds(bounds);
         mapStatus(label, type);
+        startRouteWatch(place, myGen);   // 목적지 근처 도착하면 알림
       } catch (e) {
         console.warn("[존급] 길안내 경로 표시 실패:", e);
-        mapStatus("길안내 경로를 표시하지 못했어요.", "err");
-        setTimeout(() => mapStatus(null), 2500);
+        if (myGen === routeGen) { mapStatus("길안내 경로를 표시하지 못했어요.", "err"); setTimeout(() => mapStatus(null), 2500); }
       }
     }
     function naverDir(f, t) {
