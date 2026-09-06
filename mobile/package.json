@@ -13,6 +13,7 @@
     "@capacitor/browser": "^6.0.6",
     "@capacitor/core": "^6.1.0",
     "@capacitor/geolocation": "^6.1.1",
+    "@capacitor/ios": "^6.2.2",
     "@capacitor/status-bar": "^6.0.3",
     "capacitor-native-settings": "^6.0.6"
   },

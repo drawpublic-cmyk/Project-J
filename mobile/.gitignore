@@ -1,5 +1,4 @@
 node_modules/
-ios/
 .DS_Store
 
 # Android — 소스/네이티브 커스터마이징은 커밋, 빌드 산출물만 제외

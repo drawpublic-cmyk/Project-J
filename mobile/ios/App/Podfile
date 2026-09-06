@@ -1,0 +1,31 @@
+require_relative '../../node_modules/@capacitor/ios/scripts/pods_helpers'
+
+platform :ios, '13.0'
+use_frameworks!
+
+# workaround to avoid Xcode caching of Pods that requires
+# Product -> Clean Build Folder after new Cordova plugins installed
+# Requires CocoaPods 1.6 or newer
+install! 'cocoapods', :disable_input_output_paths => true
+
+def capacitor_pods
+  pod 'Capacitor', :path => '../../node_modules/@capacitor/ios'
+  pod 'CapacitorCordova', :path => '../../node_modules/@capacitor/ios'
+  pod 'CapacitorCommunityAdmob', :path => '../../node_modules/@capacitor-community/admob'
+  pod 'CapacitorBrowser', :path => '../../node_modules/@capacitor/browser'
+  pod 'CapacitorGeolocation', :path => '../../node_modules/@capacitor/geolocation'
+  pod 'CapacitorStatusBar', :path => '../../node_modules/@capacitor/status-bar'
+  pod 'CapacitorNativeSettings', :path => '../../node_modules/capacitor-native-settings'
+end
+
+target 'App' do
+  capacitor_pods
+  # Add your Pods here
+  # CapacitorCommunityAdmob 6.2.0의 Swift 코드가 UMP SDK 3.x의 리네임(UMPConsentStatus→ConsentStatus)과
+  # 호환되지 않아 빌드 실패 → 2.x로 고정 (플러그인이 최신 UMP를 지원하도록 업데이트되면 제거 가능)
+  pod 'GoogleUserMessagingPlatform', '< 3.0'
+end
+
+post_install do |installer|
+  assertDeploymentTarget(installer)
+end
