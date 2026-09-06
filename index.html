@@ -3124,7 +3124,15 @@
     });
     document.getElementById("favClear").addEventListener("click", clearFav);
     enableDragScroll(document.getElementById("favChips"));
-    document.querySelectorAll("[data-locate]:not([data-goto])").forEach(b => b.addEventListener("click", requestLocation));
+    // 지도 '내 위치' 아이콘: 앱 선호(내 위치 허용)가 꺼져있으면 먼저 확인 팝업 → 동의 시 켜고 진행
+    document.querySelectorAll("[data-locate]:not([data-goto])").forEach(b => b.addEventListener("click", async () => {
+      if (!locPrefOn()) {
+        if (!confirm("내 위치 사용이 꺼져 있어요.\n위치 정보를 사용하도록 허용할까요?")) return;
+        setLocPref(true);
+        updateLocationSetting();
+      }
+      requestLocation();
+    }));
     enableDragScroll(document.getElementById("filterChips"));
     enableDragScroll(document.getElementById("listChips"));
     // URL 해시로 특정 화면 바로 보기 (#map, #list, #detail, #search, #bus, #sos)
