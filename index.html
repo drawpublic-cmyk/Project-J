@@ -2318,6 +2318,12 @@
         // 혹시 그래도 최초 크기 계산이 어긋난 경우를 대비한 안전망(레이아웃 완전히 안정된 뒤 한 번 더 맞춤)
         requestAnimationFrame(() => kmap.relayout());
         setTimeout(() => kmap.relayout(), 300);
+        // iOS WKWebView는 100dvh가 세이프에어리어/툴바 협상이 늦게 끝나면서 초기 크기가 한 번 더
+        // 바뀌는 경우가 있어(그 사이 지도는 잘못된 크기로 굳어 타일이 안 뜸) — 컨테이너 크기 변화를
+        // 계속 감시하다 실제로 바뀌면 그때마다 relayout()으로 다시 맞춤.
+        if (window.ResizeObserver) {
+          new ResizeObserver(() => { if (kmap.ready) kmap.relayout(); }).observe(el);
+        }
         // 내 위치 (brand-green 링)
         kmap.meOverlay = new window.kakao.maps.CustomOverlay({
           map: kmap.map,
