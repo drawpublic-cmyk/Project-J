@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <title>존급 프로토타입</title>
   <style>
     /* =========================================================
@@ -716,7 +716,7 @@
     .trip-body { padding: 16px 18px 96px; height: calc(100% - 96px); overflow-y: auto; }
     .trip-field { position: relative; display: flex; align-items: center; gap: 8px; background: var(--cream); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; }
     .trip-tag { color: #fff; font-size: 11px; font-weight: 900; padding: 3px 8px; border-radius: 7px; flex-shrink: 0; }
-    .trip-field input { border: 0; outline: 0; background: transparent; width: 100%; font-size: 15px; font-weight: 700; }
+    .trip-field input { border: 0; outline: 0; background: transparent; width: 100%; font-size: 16px; font-weight: 700; }
     .trip-drop { position: absolute; top: 100%; left: 0; right: 0; margin-top: 4px; background: var(--cream); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); z-index: 20; overflow: hidden; display: none; }
     .trip-drop.open { display: block; }
     .trip-drop button { display: block; width: 100%; text-align: left; border: 0; background: transparent; padding: 11px 14px; font-weight: 750; border-bottom: 1px solid var(--line); cursor: pointer; }
@@ -828,7 +828,10 @@
 
     /* 모바일/웹뷰: 목업 틀 제거하고 실제 앱처럼 전체화면 채움 (세로 폰 + 가로 폰=높이 작음) */
     @media (max-width: 520px), (max-height: 520px) {
-      html, body { margin: 0; height: 100%; background: #fff; }
+      /* overscroll-behavior: iOS WKWebView는 화면 가장자리에서 문서 전체가 고무줄처럼 튕겨(rubber-band)
+         흰 배경이 드러나는 문제가 있음(안드로이드 WebView는 기본적으로 안 그럼) — 내부 스크롤 영역(overflow-y:auto)은
+         그대로 스크롤되되, 그 바깥(문서 자체)으로 튕기는 것만 막음. */
+      html, body { margin: 0; height: 100%; background: #fff; overscroll-behavior: none; }
       .shell { padding: 0; gap: 0; min-height: 100dvh; }
       .phone {
         width: 100vw; height: 100dvh; max-width: none; margin: 0;
@@ -2870,7 +2873,7 @@
           // 권한은 있는데 위치를 못 잡음(GPS 꺼짐 등) → 위치 설정 화면 바로 열기 제안
           fail("현재 위치를 못 찾았어요 — 휴대폰 위치(GPS)를 켜주세요");
           const NS = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.NativeSettings;
-          if (NS && NS.openAndroid && confirm("휴대폰 위치(GPS)가 꺼져 있을 수 있어요.\n위치 설정을 열까요?")) {
+          if (NS && confirm("휴대폰 위치(GPS)가 꺼져 있을 수 있어요.\n위치 설정을 열까요?")) {
             openDeviceSettings("location");
           }
         } catch (e) { fail("위치 확인 실패(" + (e && e.message ? e.message : e) + ")"); }
@@ -2911,9 +2914,15 @@
     }
     // 폰의 시스템 설정 화면 열기(네이티브 플러그인). 'application_details'=앱 권한, 'location'=위치(GPS).
     // 플러그인 없는 구버전 APK/브라우저에선 false 반환 → 호출부가 안내문으로 폴백.
+    // iOS는 Apple 정책상 앱 자체 설정 화면(App)만 공식 지원 — 위치/권한 세부화면 딥링크 자체가 불가하므로 openAndroid 대신 openIOS(app)로 분기.
     async function openDeviceSettings(which) {
       const NS = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.NativeSettings;
-      if (NS && NS.openAndroid) { try { await NS.openAndroid({ option: which }); return true; } catch (e) {} }
+      if (!NS) return false;
+      const isIOS = window.Capacitor && window.Capacitor.getPlatform && window.Capacitor.getPlatform() === "ios";
+      try {
+        if (isIOS && NS.openIOS) { await NS.openIOS({ option: "app" }); return true; }
+        if (!isIOS && NS.openAndroid) { await NS.openAndroid({ option: which }); return true; }
+      } catch (e) {}
       return false;
     }
     // 설정 탭 '내 위치 허용' 토글 클릭
