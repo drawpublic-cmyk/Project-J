@@ -1453,7 +1453,7 @@
     // 도착 행/위치줄을 누르면 노선 타임라인(어디쯤)으로
     function bindLineOpen() {
       document.querySelectorAll("#busRows .line-open").forEach(el => {
-        el.addEventListener("click", () => openLine(el.dataset.no, el.dataset.to || "", Number(el.dataset.prev) || 0, currentMode, el.dataset.up || "", el.dataset.routeid || ""));
+        el.addEventListener("click", () => openLine(el.dataset.no, el.dataset.to || "", Number(el.dataset.prev) || 0, currentMode, el.dataset.up || "", el.dataset.routeid || "", (currentBus && currentBus.citycode) || ""));
       });
     }
 
@@ -1642,13 +1642,13 @@
         return `
         <div class="bus-row">
           <div class="route-no">${a.no}</div>
-          <div class="bus-info line-open" data-no="${a.no}" data-to="" data-prev="${a.prev}">
+          <div class="bus-info line-open" data-no="${a.no}" data-to="" data-prev="${a.prev}" data-routeid="${a.routeid || ""}">
             <b><span class="dist">${a.min}분</span> 후 도착</b>
             <div class="meta">${a.tp || "일반"}</div>
           </div>
           <div class="level ${lv[0]}">${LEVEL_TXT[lv[0]]}</div>
           <button class="heart routeHeart" data-no="${a.no}" title="이 버스 즐겨찾기">${isFav(routeFav(a.no)) ? "♥" : "♡"}</button>
-          <div class="bus-pos line-open" data-no="${a.no}" data-to="" data-prev="${a.prev}">${stopsAway(a.prev)} <span style="color:var(--brand-green);margin-left:auto">노선 보기 ›</span></div>
+          <div class="bus-pos line-open" data-no="${a.no}" data-to="" data-prev="${a.prev}" data-routeid="${a.routeid || ""}">${stopsAway(a.prev)} <span style="color:var(--brand-green);margin-left:auto">노선 보기 ›</span></div>
         </div>`;
       }).join("");
       bindRouteHearts(); bindLineOpen();
@@ -2142,14 +2142,14 @@
     }
 
     // 노선 타임라인: 실시간이면 노선 전체 역 + 모든 열차 위치, 아니면 샘플
-    async function openLine(no, to, prev, mode, up, routeid) {
+    async function openLine(no, to, prev, mode, up, routeid, citycode) {
       stopLinePoll(); lineState = null;   // 새 노선 진입 시 이전 폴링 중단
       const sub = mode === "subway";
       const veh = sub ? "🚇" : "🚌", stopW = sub ? "역" : "정류장", unit = sub ? "역" : "정거장";
       document.getElementById("lineTitle").textContent = sub ? no : (/\d$/.test(no) ? no + "번" : no);   // '9200'→9200번, '9200인천'→그대로
 
-      // ⓪ 서울 버스: 노선 전체 정류소 + 실시간 버스 위치 (routeid 있을 때)
-      if (!sub && routeid && CONFIG.DATA_GO_KR_KEY && CONFIG.PROXY) {
+      // ⓪ 서울 버스: 노선 전체 정류소 + 실시간 버스 위치 (routeid 있을 때, citycode 없음=서울)
+      if (!sub && routeid && !citycode && CONFIG.DATA_GO_KR_KEY && CONFIG.PROXY) {
         document.getElementById("lineSub").textContent = "노선·버스 위치 불러오는 중…";
         document.getElementById("lineStops").innerHTML = "";
         show("busline");
@@ -2166,6 +2166,26 @@
           return;
         }
         // 실패 시 아래 샘플로 폴백
+      }
+
+      // ⓪-1 TAGO(전국) 버스: 노선 전체 정류소 + 실시간 버스 위치 (citycode+routeid 있을 때, 경기·지방)
+      if (!sub && routeid && citycode && CONFIG.DATA_GO_KR_KEY && CONFIG.PROXY) {
+        document.getElementById("lineSub").textContent = "노선·버스 위치 불러오는 중…";
+        document.getElementById("lineStops").innerHTML = "";
+        show("busline");
+        const data = await fetchTagoRouteAll(citycode, routeid);
+        if (data && data.stops.length) {
+          const hereNodeId = currentBus && currentBus.nodeid;
+          const ordIndex = new Map(); data.stops.forEach((s, i) => ordIndex.set(s.ord, i));
+          document.getElementById("lineSub").textContent = `${to ? to + " 방면 · " : ""}실시간 ${data.buses.length}대 운행 중`;
+          document.getElementById("lineFootNote").textContent = "🚌 전국(TAGO) 버스 실시간 · 15초 갱신";
+          lineState = { mode: "tagobus", citycode, routeid, to, hereNodeId, ordIndex, color: "#16A34A", markers: {} };
+          renderLineStops(buildTagoBusStops(data.stops, hereNodeId), lineState.color);
+          requestAnimationFrame(() => positionBuses(data.buses));   // TAGO는 구간속도 데이터가 없어 색칠은 생략
+          startTagoBusPoll();
+          return;
+        }
+        // 실패 시(이 노선은 TAGO에 노선 데이터가 없음) 아래 안내로 폴백
       }
 
       // ① 실데이터(지하철): 노선 전체 역(역목록) + 실시간 열차위치 오버레이
@@ -2217,11 +2237,11 @@
         return;
       }
 
-      // 버스인데 노선 상세를 못 주는 경우(경기·지방 TAGO): 가짜 정류장 대신 안내
+      // 버스인데 노선 상세를 못 주는 경우(TAGO에 이 노선 데이터가 없음 등): 가짜 정류장 대신 안내
       if (!sub) {
         document.getElementById("lineSub").textContent = `${no}번 · 노선 상세 미지원`;
         document.getElementById("lineFootNote").textContent = "";
-        renderLineStops([{ cls: "here", label: "이 버스는 노선 전체보기를 지원하지 않아요", tag: "경기·지방 버스는 노선정보 API 미승인. 서울 버스는 번호 검색 시 전체 노선이 나와요." }]);
+        renderLineStops([{ cls: "here", label: "이 버스는 노선 전체보기를 지원하지 않아요", tag: "이 노선은 아직 실시간 노선 데이터가 없어요(운영기관 미제공 등)." }]);
         return;
       }
 
@@ -2599,8 +2619,59 @@
       const arr = Array.isArray(items.item) ? items.item : [items.item];
       return arr.map(a => ({
         no: a.routeno, min: Math.max(1, Math.round((Number(a.arrtime) || 0) / 60)),
-        prev: Number(a.arrprevstationcnt) || 0, tp: a.routetp || ""
+        prev: Number(a.arrprevstationcnt) || 0, tp: a.routetp || "", routeid: a.routeid || ""
       })).sort((x, y) => x.min - y.min);
+    }
+    // TAGO(전국) 노선 전체 경유 정류소 (경유정류소목록조회) — nodeord 순 정렬
+    async function fetchTagoRouteStops(cityCode, routeId) {
+      if (!CONFIG.DATA_GO_KR_KEY || !CONFIG.PROXY || !cityCode || !routeId) return [];
+      try {
+        const base = "http://apis.data.go.kr/1613000/BusRouteInfoInqireService/getRouteAcctoThrghSttnList";
+        const qs = new URLSearchParams({ serviceKey: CONFIG.DATA_GO_KR_KEY, cityCode, routeId, numOfRows: 300, pageNo: 1, _type: "json" });
+        const res = await fetch(px(base + "?" + qs.toString()));
+        const json = await res.json();
+        const items = json && json.response && json.response.body && json.response.body.items;
+        if (!items || !items.item) return [];
+        const arr = Array.isArray(items.item) ? items.item : [items.item];
+        return arr.map(it => ({ ord: Number(it.nodeord), name: it.nodenm, nodeid: it.nodeid, lat: Number(it.gpslati), lng: Number(it.gpslong) }))
+                  .sort((a, b) => a.ord - b.ord);
+      } catch (e) { console.warn("[존급] TAGO 노선 정류소 실패:", e); return []; }
+    }
+    // TAGO(전국) 노선 실시간 버스 위치 (노선별버스위치조회)
+    async function fetchTagoRouteBuses(cityCode, routeId) {
+      if (!CONFIG.DATA_GO_KR_KEY || !CONFIG.PROXY || !cityCode || !routeId) return [];
+      try {
+        const base = "http://apis.data.go.kr/1613000/BusLcInfoInqireService/getRouteAcctoBusLcList";
+        const qs = new URLSearchParams({ serviceKey: CONFIG.DATA_GO_KR_KEY, cityCode, routeId, numOfRows: 100, pageNo: 1, _type: "json" });
+        const res = await fetch(px(base + "?" + qs.toString()));
+        const json = await res.json();
+        const items = json && json.response && json.response.body && json.response.body.items;
+        if (!items || !items.item) return [];
+        const arr = Array.isArray(items.item) ? items.item : [items.item];
+        return arr.map(it => ({ id: it.vehicleno, ord: Number(it.nodeord) })).filter(b => b.id && b.ord);
+      } catch (e) { console.warn("[존급] TAGO 버스 위치 실패:", e); return []; }
+    }
+    // TAGO 노선 전체(정류소+버스위치) — 정류소가 하나도 없으면(노선ID 오류 등) null
+    async function fetchTagoRouteAll(cityCode, routeId) {
+      const [stops, buses] = await Promise.all([fetchTagoRouteStops(cityCode, routeId), fetchTagoRouteBuses(cityCode, routeId)]);
+      if (!stops.length) return null;
+      return { stops, buses };
+    }
+    function buildTagoBusStops(stops, hereNodeId) {   // 서울 버스와 동일 패턴: 정류소는 점(●)만, 버스는 떠다니는 마커
+      return stops.map(s => {
+        const here = s.nodeid && s.nodeid === hereNodeId;
+        return { icon: null, cls: here ? "here" : "", label: s.name + (here ? " (승차·여기)" : ""), tag: "" };
+      });
+    }
+    function startTagoBusPoll() {
+      stopLinePoll();
+      lineTimer = setInterval(async () => {
+        if (!lineState || lineState.mode !== "tagobus") return stopLinePoll();
+        const data = await fetchTagoRouteAll(lineState.citycode, lineState.routeid);
+        if (!data) return;
+        document.getElementById("lineSub").textContent = `${lineState.to || ""} · 실시간 ${data.buses.length}대 운행 중`;
+        positionBuses(data.buses);   // 정류소 목록은 그대로, 버스 마커만 갱신(TAGO는 구간속도 데이터가 없어 색칠은 생략)
+      }, 15000);
     }
 
     // 서울 버스 — 좌표기반 근접 정류소 (TAGO 미수록 서울 구간 폴백, 프록시 경유)
