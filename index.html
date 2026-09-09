@@ -904,6 +904,7 @@
       <section class="screen" data-screen="map">
         <div class="map-head">
           <button class="searchbar" data-goto="search">⌕ 어디 근처에서 급해요?</button>
+          <div id="mapAdSpacer" style="height:0"></div>
           <div class="chips" id="filterChips"></div>
         </div>
         <div class="map">
@@ -1273,30 +1274,41 @@
       try { SB.setStyle({ style: "LIGHT" }); } catch (e) {}   // 밝은 바 배경 → 어두운 아이콘
     })();
 
-    /* ---------- AdMob 하단 배너 ----------
-       네이티브 배너를 WebView 하단에 얹음(표시 시 웹뷰가 배너 높이만큼 줄어 탭바 위에 배너). 웹에선 플러그인 없어 무시.
-       ⚠️ 현재는 구글 공식 '테스트' 광고 ID. 실제 AdMob 계정 발급 후 아래 ID + Manifest의 APPLICATION_ID 교체.
-       유니티(안드로이드 Game ID 6169679)는 AdMob 대시보드에서 미디에이션 소스로 추가(코드 변경 없음). */
+    /* ---------- AdMob 배너 (지도 화면: 검색창 ↓ 카테고리 칩 사이) ----------
+       네이티브 배너는 화면 좌표(TOP_CENTER + margin)로 위치를 잡을 뿐, 우리 DOM 레이아웃은 몰라서
+       그 자리를 실제로 비워주는 건 우리 몫 — #mapAdSpacer의 높이를 배너 실제 높이만큼 늘려 칩·지도를
+       그만큼 밀어내리고, #kakaoMap/#mapStatus의 top도 그 아래로 다시 계산해 맞춘다.
+       웹(플러그인 없음)에서는 전부 조용히 무시됨.
+       ⚠️ 현재는 구글 공식 '테스트' 광고 ID. 실제 AdMob 계정 발급 후 아래 ID + Manifest의 APPLICATION_ID 교체. */
     const ADMOB_BANNER_ID = "ca-app-pub-3940256099942544/6300978111"; // 구글 공식 테스트 배너(Android)
-    const BANNER_SCREENS = ["map", "list", "fav", "settings"];        // 탐색 화면만 배너. 긴급/몰입(온보딩·상세·길안내·버스도착·SOS·검색)은 숨김
-    const BANNER_H = 50;   // AdMob BANNER 표준 높이(dp)
+    const BANNER_SCREENS = ["map"];   // 우선 지도 화면만(검색창-카테고리 사이). 다른 화면은 헤더 구조가 달라 추후 확장
     let admobReady = false, bannerShown = false, lastScreenForBanner = "";
     const _AdMob = () => window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.AdMob;
+    // #mapAdSpacer 높이가 바뀐 뒤 지도(#kakaoMap)·상태바(#mapStatus)를 map-head 바로 아래로 재배치
+    function layoutMapHead() {
+      const head = document.querySelector(".map-head");
+      if (!head) return;
+      const bottom = Math.round(head.getBoundingClientRect().bottom);
+      const mapEl = document.getElementById("kakaoMap");
+      const statusEl = document.getElementById("mapStatus");
+      if (mapEl) mapEl.style.top = bottom + "px";
+      if (statusEl) statusEl.style.top = (bottom + 7) + "px";
+      if (kmap.ready) kmap.relayout();
+    }
     async function initAdMob() {
       const A = _AdMob(); if (!A) return;   // 웹/미지원이면 스킵
       try {
         await A.initialize({ initializeForTesting: true });
         admobReady = true;
-        // 배너 실제 크기를 받아 예약 높이를 동적으로 맞춤(320x50/468x60/adaptive 등 크기가 달라도 안 겹침)
+        // 배너 실제 크기를 받아 예약 공간을 정확히 맞춤(320x50/468x60/adaptive 등 크기가 달라도 안 겹침)
         try {
           A.addListener("bannerAdSizeChanged", (s) => {
             if (!bannerShown || !s || !s.height) return;
             let h = Math.round(s.height);
             if (h > 120) h = Math.round(h / (window.devicePixelRatio || 1));   // px로 온 경우 dp로 환산
-            // WebView(100dvh)는 이미 시스템 네비바 위로 자동 배제돼 있음(안드로이드가 처리) → 배너높이+여유만 예약.
-            // navInset을 더 더하면 이중계산돼 배너-네비바 사이 빈 공간이 생김(3버튼 모드에서 특히 큼).
-            document.documentElement.style.setProperty("--ad-h", (h + 20) + "px");
-            if (kmap.ready) setTimeout(() => kmap.relayout(), 50);
+            const spacer = document.getElementById("mapAdSpacer");
+            if (spacer) spacer.style.height = h + "px";
+            layoutMapHead();
           });
         } catch (e) {}
         updateBanner(lastScreenForBanner);
@@ -1306,24 +1318,20 @@
       lastScreenForBanner = screen;
       const A = _AdMob(); if (!A || !admobReady) return;
       const want = BANNER_SCREENS.includes(screen);
-      const root = document.documentElement.style;
+      const spacer = document.getElementById("mapAdSpacer");
       try {
         if (want && !bannerShown) {
-          // 아래→위 순서: [시스템 네비바(안드로이드가 자동 배제)] → [광고 배너(네이티브 뷰)] → [탭바] → [콘텐츠]
-          // WebView(100dvh)는 이미 시스템 네비바(제스처든 3버튼이든) 위로 뷰포트가 잡혀 있어 별도 margin/보정 불필요.
-          // 광고는 CSS가 아닌 네이티브 뷰라 실제 크기를 로드 전엔 모름(bannerAdSizeChanged가 나중에 알려줌).
-          // 그 전까지 예약을 너무 작게 잡으면 실제 광고가 더 크게 뜰 때 우리 콘텐츠 일부가 광고 뒤로
-          // 밀려들어가 탭바(96% 불투명) 틈으로 살짝 비쳐 보이는 문제가 있었음 → 초기값을 넉넉히(최대
-          // 예상 배너 크기 기준) 잡아 절대 부족하지 않게 하고, 실제 크기 확인되면 위 리스너가 줄여줌.
-          root.setProperty("--ad-h", "100px");
-          root.setProperty("--tab-safe", "0px");                      // 탭바 자체 네비바 여백 제거(중복 방지)
-          await A.showBanner({ adId: ADMOB_BANNER_ID, adSize: "BANNER", position: "BOTTOM_CENTER", margin: 0, isTesting: true });
+          if (spacer) spacer.style.height = "50px";   // 실제 크기 알기 전 표준 BANNER(50dp) 기준 임시 예약
+          layoutMapHead();
+          // 검색창 바로 아래 y좌표를 margin으로 줘서 그 지점부터 배너가 시작되게(기기별 세이프에어리어와 무관하게 항상 정확)
+          const searchbar = document.querySelector(".searchbar");
+          const margin = searchbar ? Math.round(searchbar.getBoundingClientRect().bottom) : 0;
+          await A.showBanner({ adId: ADMOB_BANNER_ID, adSize: "BANNER", position: "TOP_CENTER", margin, isTesting: true });
           bannerShown = true;
-          if (kmap.ready) setTimeout(() => kmap.relayout(), 60);      // 높이 바뀐 뒤 지도 다시 맞춤
         } else if (!want && bannerShown) {
           await A.hideBanner(); bannerShown = false;
-          root.setProperty("--ad-h", "0px");
-          root.removeProperty("--tab-safe");                          // 탭바 네비바 여백 원복(env로)
+          if (spacer) spacer.style.height = "0px";
+          layoutMapHead();
         }
       } catch (e) { console.warn("[존급] 배너 표시 오류:", e); }
     }
