@@ -1332,7 +1332,7 @@
             const padTop = parseFloat(getComputedStyle(head).paddingTop) || 0;
             margin = Math.round(r.top + padTop);
           }
-          await A.showBanner({ adId: ADMOB_BANNER_ID, adSize: "BANNER", position: "TOP_CENTER", margin, isTesting: true });
+          await A.showBanner({ adId: ADMOB_BANNER_ID, adSize: "ADAPTIVE_BANNER", position: "TOP_CENTER", margin, isTesting: true });
           bannerShown = true;
         } else if (!want && bannerShown) {
           await A.hideBanner(); bannerShown = false;
