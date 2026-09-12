@@ -1323,9 +1323,15 @@
         if (want && !bannerShown) {
           if (spacer) spacer.style.height = "50px";   // 실제 크기 알기 전 표준 BANNER(50dp) 기준 임시 예약
           layoutMapHead();
-          // map-head 맨 위(검색창보다 위) y좌표를 margin으로 줘서 그 지점부터 배너가 시작되게(기기별 세이프에어리어와 무관하게 항상 정확)
+          // 상태바(세이프에어리어) 바로 아래 y좌표를 margin으로 줘서 그 지점부터 배너가 시작되게.
+          // map-head 자체의 top은 0이라(패딩으로 안전영역을 확보하는 구조) padding-top까지 더해야 실제 안전선이 나옴.
           const head = document.querySelector(".map-head");
-          const margin = head ? Math.round(head.getBoundingClientRect().top) : 0;
+          let margin = 0;
+          if (head) {
+            const r = head.getBoundingClientRect();
+            const padTop = parseFloat(getComputedStyle(head).paddingTop) || 0;
+            margin = Math.round(r.top + padTop);
+          }
           await A.showBanner({ adId: ADMOB_BANNER_ID, adSize: "BANNER", position: "TOP_CENTER", margin, isTesting: true });
           bannerShown = true;
         } else if (!want && bannerShown) {
