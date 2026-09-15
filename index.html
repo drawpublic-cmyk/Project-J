@@ -943,6 +943,7 @@
       <section class="screen" data-screen="list">
         <div class="page">
           <div class="titlebar"><h2>근처</h2><button class="mini-btn" data-goto="map">지도로 보기</button></div>
+          <div id="listAdSpacer" style="height:0"></div>
           <p class="sub" id="listSub">지도에 보이는 지역 · 가까운 순</p>
           <div class="chips" id="listChips"></div>
           <div class="list-toolbar"><span>가까운 순 ▼</span><span id="countLabel">전체 6</span></div>
@@ -961,6 +962,7 @@
         <div class="page">
           <div class="titlebar"><h2>즐겨찾기</h2><button class="mini-btn" id="favClear">전체 삭제</button></div>
           <p class="sub" id="favSub">하트를 누른 장소가 여기 모여요</p>
+          <div id="favAdSpacer" style="height:0"></div>
           <div class="chips" id="favChips"></div>
           <div id="favList"></div>
         </div>
@@ -1120,6 +1122,7 @@
       <section class="screen" data-screen="settings">
         <div class="page">
           <div class="titlebar"><h2 style="margin:6px 0 14px">설정</h2></div>
+          <div id="settingsAdSpacer" style="height:0"></div>
           <div class="settings-group">
             <div class="settings-label">앱 정보</div>
             <div class="settings-item static">버전 <span class="arw" id="appVer">v1.0.0</span></div>
@@ -1274,17 +1277,21 @@
       try { SB.setStyle({ style: "LIGHT" }); } catch (e) {}   // 밝은 바 배경 → 어두운 아이콘
     })();
 
-    /* ---------- AdMob 배너 (지도 화면: 검색창 바로 위) ----------
+    /* ---------- AdMob 배너 (화면별로 정해진 자리 하나씩) ----------
        네이티브 배너는 화면 좌표(TOP_CENTER + margin)로 위치를 잡을 뿐, 우리 DOM 레이아웃은 몰라서
-       그 자리를 실제로 비워주는 건 우리 몫 — #mapAdSpacer(검색창보다 먼저)의 높이를 배너 실제 높이만큼
-       늘려 검색창·칩·지도를 그만큼 밀어내리고, #kakaoMap/#mapStatus의 top도 다시 계산해 맞춘다.
+       그 자리를 실제로 비워주는 건 우리 몫 — 화면마다 둔 스페이서(#mapAdSpacer 등)의 높이를 배너 실제
+       높이만큼 늘려 그 아래 내용을 밀어내리고, margin은 그 스페이서가 시작되는 y좌표로 계산한다.
+       지도 화면만 #kakaoMap/#mapStatus가 position:absolute라 따로 재배치가 필요(layoutMapHead) —
+       나머지 화면은 일반 문서 흐름이라 스페이서 높이만 바뀌면 자동으로 밀림.
        웹(플러그인 없음)에서는 전부 조용히 무시됨.
        ⚠️ 현재는 구글 공식 '테스트' 광고 ID. 실제 AdMob 계정 발급 후 아래 ID + Manifest의 APPLICATION_ID 교체. */
     const ADMOB_BANNER_ID = "ca-app-pub-3940256099942544/6300978111"; // 구글 공식 테스트 배너(Android)
-    const BANNER_SCREENS = ["map"];   // 우선 지도 화면만(검색창-카테고리 사이). 다른 화면은 헤더 구조가 달라 추후 확장
-    let admobReady = false, bannerShown = false, lastScreenForBanner = "";
+    // 화면별 배너 자리(스페이서 id). map=검색창 위, list=타이틀 아래, fav=안내문구 아래, settings=제목 아래
+    const BANNER_SPACER = { map: "mapAdSpacer", list: "listAdSpacer", fav: "favAdSpacer", settings: "settingsAdSpacer" };
+    const BANNER_SCREENS = Object.keys(BANNER_SPACER);
+    let admobReady = false, bannerShown = false, bannerScreen = null, lastScreenForBanner = "";
     const _AdMob = () => window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.AdMob;
-    // #mapAdSpacer 높이가 바뀐 뒤 지도(#kakaoMap)·상태바(#mapStatus)를 map-head 바로 아래로 재배치
+    // #mapAdSpacer 높이가 바뀐 뒤 지도(#kakaoMap)·상태바(#mapStatus)를 map-head 바로 아래로 재배치(지도 화면 전용)
     function layoutMapHead() {
       const head = document.querySelector(".map-head");
       if (!head) return;
@@ -1295,6 +1302,16 @@
       if (statusEl) statusEl.style.top = (bottom + 7) + "px";
       if (kmap.ready) kmap.relayout();
     }
+    function setBannerSpacer(screen, h) {
+      const id = BANNER_SPACER[screen]; const el = id && document.getElementById(id);
+      if (el) el.style.height = h + "px";
+      if (screen === "map") layoutMapHead();
+    }
+    // 스페이서가 시작되는(=배너가 시작될) 화면 y좌표 — 세이프에어리어·화면별 레이아웃과 무관하게 항상 정확
+    function bannerMargin(screen) {
+      const id = BANNER_SPACER[screen]; const el = id && document.getElementById(id);
+      return el ? Math.round(el.getBoundingClientRect().top) : 0;
+    }
     async function initAdMob() {
       const A = _AdMob(); if (!A) return;   // 웹/미지원이면 스킵
       try {
@@ -1303,12 +1320,10 @@
         // 배너 실제 크기를 받아 예약 공간을 정확히 맞춤(320x50/468x60/adaptive 등 크기가 달라도 안 겹침)
         try {
           A.addListener("bannerAdSizeChanged", (s) => {
-            if (!bannerShown || !s || !s.height) return;
+            if (!bannerShown || !bannerScreen || !s || !s.height) return;
             let h = Math.round(s.height);
             if (h > 120) h = Math.round(h / (window.devicePixelRatio || 1));   // px로 온 경우 dp로 환산
-            const spacer = document.getElementById("mapAdSpacer");
-            if (spacer) spacer.style.height = h + "px";
-            layoutMapHead();
+            setBannerSpacer(bannerScreen, h);
           });
         } catch (e) {}
         updateBanner(lastScreenForBanner);
@@ -1318,26 +1333,22 @@
       lastScreenForBanner = screen;
       const A = _AdMob(); if (!A || !admobReady) return;
       const want = BANNER_SCREENS.includes(screen);
-      const spacer = document.getElementById("mapAdSpacer");
       try {
+        // 배너 자리가 있는 다른 화면으로 넘어간 경우(예: 지도→설정) — 이전 자리 비우고 새로 그 자리에 띄움
+        if (bannerShown && bannerScreen && bannerScreen !== screen) {
+          await A.hideBanner();
+          setBannerSpacer(bannerScreen, 0);
+          bannerShown = false; bannerScreen = null;
+        }
         if (want && !bannerShown) {
-          if (spacer) spacer.style.height = "50px";   // 실제 크기 알기 전 표준 BANNER(50dp) 기준 임시 예약
-          layoutMapHead();
-          // 상태바(세이프에어리어) 바로 아래 y좌표를 margin으로 줘서 그 지점부터 배너가 시작되게.
-          // map-head 자체의 top은 0이라(패딩으로 안전영역을 확보하는 구조) padding-top까지 더해야 실제 안전선이 나옴.
-          const head = document.querySelector(".map-head");
-          let margin = 0;
-          if (head) {
-            const r = head.getBoundingClientRect();
-            const padTop = parseFloat(getComputedStyle(head).paddingTop) || 0;
-            margin = Math.round(r.top + padTop);
-          }
+          setBannerSpacer(screen, 50);   // 실제 크기 알기 전 표준 BANNER(50dp) 기준 임시 예약
+          const margin = bannerMargin(screen);
           await A.showBanner({ adId: ADMOB_BANNER_ID, adSize: "ADAPTIVE_BANNER", position: "TOP_CENTER", margin, isTesting: true });
-          bannerShown = true;
+          bannerShown = true; bannerScreen = screen;
         } else if (!want && bannerShown) {
           await A.hideBanner(); bannerShown = false;
-          if (spacer) spacer.style.height = "0px";
-          layoutMapHead();
+          setBannerSpacer(bannerScreen, 0);
+          bannerScreen = null;
         }
       } catch (e) { console.warn("[존급] 배너 표시 오류:", e); }
     }
