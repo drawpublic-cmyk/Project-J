@@ -1334,9 +1334,12 @@
       const A = _AdMob(); if (!A || !admobReady) return;
       const want = BANNER_SCREENS.includes(screen);
       try {
-        // 배너 자리가 있는 다른 화면으로 넘어간 경우(예: 지도→설정) — 이전 자리 비우고 새로 그 자리에 띄움
+        // 배너 자리가 있는 다른 화면으로 넘어간 경우(예: 지도→설정) — 이전 자리 비우고 새로 그 자리에 띄움.
+        // hideBanner()는 기존 네이티브 뷰를 숨기기만 하고 위치는 그대로 남겨서, 그 뒤 showBanner()를
+        // 다시 불러도 위치 갱신도 안 되고 Promise도 안 끝나는 안드로이드 플러그인 버그가 있음 →
+        // removeBanner()로 완전히 없앤 뒤 새로 showBanner()해야 새 위치에 정상적으로 다시 뜸.
         if (bannerShown && bannerScreen && bannerScreen !== screen) {
-          await A.hideBanner();
+          await A.removeBanner();
           setBannerSpacer(bannerScreen, 0);
           bannerShown = false; bannerScreen = null;
         }
@@ -1346,7 +1349,7 @@
           await A.showBanner({ adId: ADMOB_BANNER_ID, adSize: "ADAPTIVE_BANNER", position: "TOP_CENTER", margin, isTesting: true });
           bannerShown = true; bannerScreen = screen;
         } else if (!want && bannerShown) {
-          await A.hideBanner(); bannerShown = false;
+          await A.removeBanner(); bannerShown = false;
           setBannerSpacer(bannerScreen, 0);
           bannerScreen = null;
         }
