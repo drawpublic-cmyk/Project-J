@@ -1665,7 +1665,8 @@
       syncBusHeart();
       const rows = document.getElementById("busRows");
       const foot = document.getElementById("busFootNote");
-      const busanBase = (place.name || "").replace(/역$/, "").trim();
+      // 카카오 장소명이 "서면역 부산1호선"처럼 역명 뒤에 노선설명이 붙어서 오므로 첫 '역' 앞까지만 추출
+      const busanBase = ((place.name || "").match(/^(.+?)역/) || [, (place.name || "").trim()])[1];
       const isBusan = (place.addr || "").includes("부산") && BUSAN_CODES_BY_NAME[busanBase];
       if (isBusan && CONFIG.DATA_GO_KR_KEY && CONFIG.PROXY) {
         foot.textContent = "🚇 부산 지하철 시간표 기준 도착예정 · 실시간 GPS 아님(지연 미반영) · 하트=즐겨찾기";
