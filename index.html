@@ -1603,6 +1603,59 @@
         renderArrivalsMock(buses); // 키 없음 → 샘플
       }
     }
+    /* ---------- 부산 지하철(부산교통공사) — 시간표 기준 도착예정(실시간 GPS 아님) ----------
+       서울과 달리 부산은 실시간 위치 API가 없고 '역별 열차시각표 조회'(고정 스케줄)만 제공.
+       환승역(예: 서면·동래·연산·수영·덕천·미남·교대)은 노선마다 역코드가 따로 있어(예: 서면(1)=119, 서면(2)=219)
+       이름 하나에 코드가 여러 개 걸릴 수 있음 → 이름별로 코드 배열을 묶어 전부 조회 후 합침. */
+    const BUSAN_STATIONS = {95:"다대포해수욕장",96:"다대포항",97:"낫개",98:"신장림",99:"장림",100:"동매",101:"신평",102:"하단",103:"당리",104:"사하",105:"괴정",106:"대티",107:"서대신",108:"동대신",109:"토성",110:"자갈치",111:"남포",112:"중앙",113:"부산",114:"초량",115:"부산진",116:"좌천",117:"범일",118:"범내골",119:"서면(1)",120:"부전",121:"양정",122:"시청",123:"연산(1)",124:"교대(1)",125:"동래(1)",126:"명륜",127:"온천장",128:"부산대",129:"장전",130:"구서",131:"두실",132:"남산",133:"범어사",134:"노포",201:"장산",202:"중동",203:"해운대",204:"동백",205:"벡스코(시립미술관)",206:"센텀시티",207:"민락",208:"수영(2)",209:"광안",210:"금련산",211:"남천",212:"경성대·부경대",213:"대연",214:"못골",215:"지게골",216:"문현",217:"국제금융센터·부산은행",218:"전포",219:"서면(2)",220:"부암",221:"가야",222:"동의대",223:"개금",224:"냉정",225:"주례",226:"감전",227:"사상(2)",228:"덕포",229:"모덕",230:"모라",231:"구남",232:"구명",233:"덕천(2)",234:"수정",235:"화명",236:"율리",237:"동원",238:"금곡",239:"호포",240:"증산",241:"부산대양산캠퍼스",242:"남양산",243:"양산",301:"수영(3)",302:"망미",303:"배산",304:"물만골",305:"연산(3)",306:"거제(3)",307:"종합운동장",308:"사직",309:"미남(3)",310:"만덕",311:"남산정",312:"숙등",313:"덕천(3)",314:"구포",315:"강서구청",316:"체육공원",317:"대저(3)",401:"미남(4)",402:"동래(4)",403:"수안",404:"낙민",405:"충렬사",406:"명장",407:"서동",408:"금사",409:"반여농산물시장",410:"석대",411:"영산대",412:"윗반송",413:"고촌",414:"안평",801:"부전(동해선)",802:"거제해맞이",803:"거제(동해선)",804:"교대(동해선)",805:"동래(동해선)",806:"안락",807:"부산원동",808:"재송",809:"센텀",810:"벡스코(동해선)",811:"신해운대",812:"송정",813:"오시리아",814:"기장",815:"일광",816:"좌천(동해선)",817:"월내",818:"서생",819:"남창",820:"망양",821:"덕하",822:"개운포",823:"태화강",901:"사상(경전철)",902:"괘법르네시떼",903:"서부산유통지구",904:"공항",905:"덕두",906:"등구",907:"대저(경전철)",908:"평강",909:"대사",910:"불암",911:"지내",912:"김해대학",913:"인제대",914:"김해시청",915:"부원",916:"봉황",917:"수로왕릉",918:"박물관",919:"연지공원",920:"장신대",921:"가야대"};
+    const busanBaseName = n => (n || "").replace(/\(.+?\)$/, "");   // '서면(1)' → '서면'
+    const BUSAN_CODES_BY_NAME = {};
+    Object.entries(BUSAN_STATIONS).forEach(([code, name]) => {
+      const base = busanBaseName(name);
+      (BUSAN_CODES_BY_NAME[base] = BUSAN_CODES_BY_NAME[base] || []).push(code);
+    });
+    function busanDayType() { const d = new Date().getDay(); return d === 0 ? "3" : d === 6 ? "2" : "1"; }  // 1평일 2토 3일/공휴일(공휴일은 근사 안함)
+    async function fetchBusanTrainTime(scode, updown, stime, etime) {
+      if (!CONFIG.DATA_GO_KR_KEY || !CONFIG.PROXY) return [];
+      try {
+        const base = "http://apis.data.go.kr/B551542/trainTime/getTrainTime";
+        const qs = new URLSearchParams({ serviceKey: CONFIG.DATA_GO_KR_KEY, pageNo: 1, numOfRows: 5, day: busanDayType(), updown, stime, etime, enum: 5, act: "json", scode });
+        const json = await (await fetch(px(base + "?" + qs.toString()))).json();
+        const items = json && json.body && json.body.items;
+        if (!items || !items.item) return [];
+        return Array.isArray(items.item) ? items.item : [items.item];
+      } catch (e) { return []; }
+    }
+    // 부산 지하철 도착 예정 — 환승역은 이름에 걸린 코드 전부(상/하행 포함) 조회해서 합침
+    async function fetchBusanArrivals(stationBaseName) {
+      const codes = BUSAN_CODES_BY_NAME[stationBaseName];
+      if (!codes || !codes.length) return [];
+      const now = new Date();
+      const pad = n => String(n).padStart(2, "0");
+      const stime = pad(now.getHours()) + pad(now.getMinutes());
+      const end = new Date(now.getTime() + 90 * 60000);
+      const etime = pad(end.getHours() % 24) + pad(end.getMinutes());
+      const calls = [];
+      codes.forEach(code => { calls.push(fetchBusanTrainTime(code, 0, stime, etime)); calls.push(fetchBusanTrainTime(code, 1, stime, etime)); });
+      const merged = (await Promise.all(calls)).flat();
+      // updown 파라미터가 서버에서 제대로 안 걸러질 때가 있어(상/하행 요청 결과가 겹침) 열차번호+시각 기준으로 중복 제거
+      const seen = new Set();
+      const rows = merged.filter(r => {
+        const k = r.scode + "|" + r.trainno + "|" + r.arrtime;
+        if (seen.has(k)) return false;
+        seen.add(k); return true;
+      });
+      const nowMin = now.getHours() * 60 + now.getMinutes();
+      return rows.map(r => {
+        const [H, M] = (r.arrtime || "0:0").split(":").map(Number);
+        let min = (H * 60 + M) - nowMin;
+        if (min < -60) min += 24 * 60;   // 자정 넘어가는 막차 등 보정
+        min = Math.max(0, min);
+        const endName = busanBaseName(BUSAN_STATIONS[r.endcode] || "");
+        const cls = min <= 3 ? "hot" : min <= 7 ? "mid" : "low";
+        return { no: r.line + "호선", to: endName ? endName + " 방면" : "", min, prev: 0, posMsg: "", up: r.updown, sid: r.scode, level: cls === "hot" ? "곧" : cls === "mid" ? "조금" : "여유", cls };
+      }).sort((a, b) => a.min - b.min);
+    }
     // 지하철 상세: 역명/호선 + 방면·어디쯤·도착. 서울 실시간도착 API(있으면 실데이터, 없으면 샘플)
     async function openSubway(place) {
       currentBus = place; currentMode = "subway";
@@ -1612,6 +1665,18 @@
       syncBusHeart();
       const rows = document.getElementById("busRows");
       const foot = document.getElementById("busFootNote");
+      const busanBase = (place.name || "").replace(/역$/, "").trim();
+      const isBusan = (place.addr || "").includes("부산") && BUSAN_CODES_BY_NAME[busanBase];
+      if (isBusan && CONFIG.DATA_GO_KR_KEY && CONFIG.PROXY) {
+        foot.textContent = "🚇 부산 지하철 시간표 기준 도착예정 · 실시간 GPS 아님(지연 미반영) · 하트=즐겨찾기";
+        rows.innerHTML = '<p class="meta">도착 예정시각 불러오는 중…</p>';
+        try {
+          const arrs = await fetchBusanArrivals(busanBase);
+          if (arrs.length) renderArrivalsMock(arrs);
+          else rows.innerHTML = '<p class="meta">지금 시간대 운행 정보가 없어요 (막차 이후 등)</p>';
+        } catch (e) { console.warn("[존급] 부산 지하철 도착 실패:", e); renderArrivalsMock(subwayMock); }
+        return;
+      }
       if (CONFIG.SEOUL_SUBWAY_KEY && CONFIG.PROXY) {
         foot.textContent = "🚇 서울 지하철 실시간 도착정보 · 행을 누르면 노선/위치 · 하트=즐겨찾기";
         rows.innerHTML = '<p class="meta">실시간 도착정보 불러오는 중…</p>';
@@ -2262,7 +2327,9 @@
       }
 
       // ① 실데이터(지하철): 노선 전체 역(역목록) + 실시간 열차위치 오버레이
-      if (sub && CONFIG.SEOUL_SUBWAY_KEY && CONFIG.PROXY) {
+      // 부산은 호선명이 서울과 겹쳐('1호선' 등) 서울 API를 잘못 태우면 안 되므로 제외(부산은 아래 미지원 안내로)
+      const isBusanLine = sub && ((currentBus && currentBus.addr) || "").includes("부산");
+      if (sub && !isBusanLine && CONFIG.SEOUL_SUBWAY_KEY && CONFIG.PROXY) {
         document.getElementById("lineSub").textContent = "실시간 열차 위치 불러오는 중…";
         document.getElementById("lineStops").innerHTML = "";
         show("busline");
