@@ -1656,6 +1656,52 @@
         return { no: r.line + "호선", to: endName ? endName + " 방면" : "", min, prev: 0, posMsg: "", up: r.updown, sid: r.scode, level: cls === "hot" ? "곧" : cls === "mid" ? "조금" : "여유", cls };
       }).sort((a, b) => a.min - b.min);
     }
+    /* ---------- 인천1호선(인천교통공사) — 정적 시각표 기반(실시간 위치 API 미제공) ----------
+       공사가 실시간 열차위치를 공개하지 않아, 검증된 공식 시각표를 그대로 내장했다.
+       전 구간 전체시각표는 '휴일 하행'만 있어 그 조합만 '다음 열차'를 계산하고,
+       그 외(평일/상행)는 첫차·막차만 안내한다(없는 데이터를 추정·보간하지 않음).
+       부평역은 서울1호선(경인선)과 환승역이라 기존 서울 실시간 경로를 그대로 쓴다. */
+    let incheon1Data = null;
+    async function loadIncheon1() {
+      if (incheon1Data) return incheon1Data;
+      try { incheon1Data = await (await fetch("data/incheon1.json")).json(); }
+      catch (e) { incheon1Data = { stations: [], firstLast: { weekday: {}, holiday: {} }, holidayDownTrains: [] }; }
+      return incheon1Data;
+    }
+    const INCHEON1_TRANSFER_STATIONS = new Set(["부평"]);
+    const stationBaseName = nm => ((nm || "").match(/^(.+?)역/) || [, (nm || "").trim()])[1];
+    function incheonDayType() { const d = new Date().getDay(); return (d === 0 || d === 6) ? "holiday" : "weekday"; }   // 데이터가 평일/휴일 2종뿐(공휴일 근사 안함)
+    // 이 역을 지나는 시각들 중 '지금부터 다음 N개'(자정 넘는 시각은 자연스럽게 다음날로 계산됨)
+    function incheonNextTimes(now, hmList, n) {
+      const start = new Date(now); start.setHours(0, 0, 0, 0);
+      const grace = 5 * 60000;
+      return hmList.filter(Boolean).map(hm => {
+        const [H, M] = hm.split(":").map(Number);
+        let d = new Date(start.getTime() + (H * 60 + M) * 60000);
+        if (d.getTime() < now.getTime() - grace) d = new Date(d.getTime() + 86400000);
+        return d;
+      }).sort((a, b) => a - b).filter(d => d.getTime() >= now.getTime() - grace).slice(0, n);
+    }
+    // 상세화면 도착정보 행(상행/하행 2줄) — 가능하면 '다음 열차 N분 후', 없으면 첫차/막차 안내
+    async function fetchIncheon1Arrivals(stationName) {
+      const data = await loadIncheon1();
+      if (!data.stations.includes(stationName)) return [];
+      const now = new Date();
+      const dayType = incheonDayType();
+      const fl = data.firstLast[dayType][stationName];
+      const rows = [];
+      const mk = (dir, to, min, msg) => ({ no: "인천1호선", to: to + " 방면", min: min || 0, prev: 0, posMsg: msg || "", up: dir, cls: min && min <= 5 ? "hot" : min && min <= 12 ? "mid" : "low" });
+
+      if (dayType === "holiday") {   // 하행: 휴일이면 전체시각표로 다음 열차 계산
+        const si = data.stations.indexOf(stationName);
+        const times = data.holidayDownTrains.map(t => t.times[si]).filter(Boolean);
+        const next = incheonNextTimes(now, times, 3);
+        if (next.length) rows.push(mk("1", "송도달빛축제공원", Math.round((next[0].getTime() - now.getTime()) / 60000)));
+        else rows.push(mk("1", "송도달빛축제공원", 0, fl ? `막차 지남 · 첫차 ${fl.downFirst}` : "운행정보 없음"));
+      } else if (fl) rows.push(mk("1", "송도달빛축제공원", 0, `첫차 ${fl.downFirst} · 막차 ${fl.downLast}`));
+      if (fl) rows.push(mk("0", "검단호수공원", 0, `첫차 ${fl.upFirst} · 막차 ${fl.upLast}`));   // 상행: 전 구간 전체시각표가 없어 첫/막차만
+      return rows;
+    }
     // 지하철 상세: 역명/호선 + 방면·어디쯤·도착. 서울 실시간도착 API(있으면 실데이터, 없으면 샘플)
     async function openSubway(place) {
       currentBus = place; currentMode = "subway";
@@ -1676,6 +1722,19 @@
           if (arrs.length) renderArrivalsMock(arrs);
           else rows.innerHTML = '<p class="meta">지금 시간대 운행 정보가 없어요 (막차 이후 등)</p>';
         } catch (e) { console.warn("[존급] 부산 지하철 도착 실패:", e); renderArrivalsMock(subwayMock); }
+        return;
+      }
+      const incheonBase = stationBaseName(place.name || "");
+      const inc1ForDetail = await loadIncheon1();
+      const isIncheon1 = (place.addr || "").includes("인천") && inc1ForDetail.stations.includes(incheonBase) && !INCHEON1_TRANSFER_STATIONS.has(incheonBase);
+      if (isIncheon1) {
+        foot.textContent = "🚇 인천1호선 시간표 기준 안내 · 실시간 위치 아님(공사 미제공) · 하트=즐겨찾기";
+        rows.innerHTML = '<p class="meta">시각표 불러오는 중…</p>';
+        try {
+          const arrs = await fetchIncheon1Arrivals(incheonBase);
+          if (arrs.length) renderArrivalsMock(arrs);
+          else rows.innerHTML = '<p class="meta">이 역의 시각표 정보를 찾을 수 없어요.</p>';
+        } catch (e) { console.warn("[존급] 인천1호선 안내 실패:", e); renderArrivalsMock(subwayMock); }
         return;
       }
       if (CONFIG.SEOUL_SUBWAY_KEY && CONFIG.PROXY) {
@@ -2325,6 +2384,23 @@
           return;
         }
         // 실패 시(이 노선은 TAGO에 노선 데이터가 없음) 아래 안내로 폴백
+      }
+
+      // ①-0 인천1호선: 실시간 위치 API가 없어(공사 미제공) 정적 시각표로 노선 전체 역만 실데이터로 보여준다
+      //     (역 순서는 100% 정확, 열차 위치는 표시하지 않음 — 없는 데이터를 추정하지 않음)
+      const inc1ForLine = await loadIncheon1();
+      const incBaseForLine = stationBaseName((currentBus && currentBus.name) || "");
+      const isIncheon1Line = sub && ((currentBus && currentBus.addr) || "").includes("인천") && inc1ForLine.stations.includes(incBaseForLine) && !INCHEON1_TRANSFER_STATIONS.has(incBaseForLine);
+      if (isIncheon1Line) {
+        document.getElementById("lineStops").innerHTML = "";
+        show("busline");
+        const isDown = up === "1";   // openSubway의 fetchIncheon1Arrivals가 하행="1"로 넘김
+        const axis = isDown ? inc1ForLine.stations : inc1ForLine.stations.slice().reverse();
+        document.getElementById("lineSub").textContent = `${to || ""} · 정차역 ${axis.length}개`;
+        const liveNote = isDown && incheonDayType() === "holiday" ? "휴일 하행은 시간표 기준 다음 열차 안내됨" : "이 방면/요일은 시간표상 첫·막차만 제공";
+        document.getElementById("lineFootNote").textContent = `🚇 인천1호선 — 역 순서는 실데이터, 실시간 열차위치는 공사 미제공. ${liveNote}(상세화면 참고).`;
+        renderLineStops(axis.map(nm => ({ icon: nm === incBaseForLine ? "🚇" : "●", cls: nm === incBaseForLine ? "here" : "", label: nm + (nm === incBaseForLine ? " (승차역·여기)" : "") })), lineColor(no));
+        return;
       }
 
       // ① 실데이터(지하철): 노선 전체 역(역목록) + 실시간 열차위치 오버레이
