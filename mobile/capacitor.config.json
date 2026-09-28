@@ -5,6 +5,7 @@
   "server": {
     "url": "https://project-j-phi.vercel.app",
     "androidScheme": "https",
-    "cleartext": false
+    "cleartext": false,
+    "errorPath": "offline.html"
   }
 }

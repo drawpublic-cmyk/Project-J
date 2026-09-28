@@ -1,21 +1,24 @@
 PODS:
-  - Capacitor (6.2.2):
+  - Capacitor (8.5.2):
     - CapacitorCordova
-  - CapacitorBrowser (6.0.6):
+  - CapacitorBrowser (8.0.4):
     - Capacitor
-  - CapacitorCommunityAdmob (6.2.0):
+  - CapacitorCommunityAdmob (8.1.0):
     - Capacitor
-    - Google-Mobile-Ads-SDK (= 11.3.0)
-  - CapacitorCordova (6.2.2)
-  - CapacitorGeolocation (6.1.1):
+    - Google-Mobile-Ads-SDK (= 13.6.0)
+    - GoogleUserMessagingPlatform (~> 3.1)
+  - CapacitorCordova (8.5.2)
+  - CapacitorGeolocation (8.2.2):
     - Capacitor
-  - CapacitorNativeSettings (6.0.6):
+    - IONGeolocationLib (= 2.1.0)
+  - CapacitorNativeSettings (8.2.0):
     - Capacitor
-  - CapacitorStatusBar (6.0.3):
+  - CapacitorStatusBar (8.0.3):
     - Capacitor
-  - Google-Mobile-Ads-SDK (11.3.0):
+  - Google-Mobile-Ads-SDK (13.6.0):
     - GoogleUserMessagingPlatform (>= 1.1)
-  - GoogleUserMessagingPlatform (2.7.0)
+  - GoogleUserMessagingPlatform (3.1.0)
+  - IONGeolocationLib (2.1.0)
 
 DEPENDENCIES:
   - "Capacitor (from `../../node_modules/@capacitor/ios`)"
@@ -25,12 +28,12 @@ DEPENDENCIES:
   - "CapacitorGeolocation (from `../../node_modules/@capacitor/geolocation`)"
   - CapacitorNativeSettings (from `../../node_modules/capacitor-native-settings`)
   - "CapacitorStatusBar (from `../../node_modules/@capacitor/status-bar`)"
-  - GoogleUserMessagingPlatform (< 3.0)
 
 SPEC REPOS:
   trunk:
     - Google-Mobile-Ads-SDK
     - GoogleUserMessagingPlatform
+    - IONGeolocationLib
 
 EXTERNAL SOURCES:
   Capacitor:
@@ -49,16 +52,17 @@ EXTERNAL SOURCES:
     :path: "../../node_modules/@capacitor/status-bar"
 
 SPEC CHECKSUMS:
-  Capacitor: 6591a78b923b7e6dde28506ffeea820356e68013
-  CapacitorBrowser: 825163a1d6adce944ac7b9e3cab101146b5a9df8
-  CapacitorCommunityAdmob: 52a6ebbec5e4c277d2694657becd42bcadbe369a
-  CapacitorCordova: c2c76283b5c00cf6073bab0b1311e3b10bd17254
-  CapacitorGeolocation: ef657a46a125be74010f4ce57caae173c23204d2
-  CapacitorNativeSettings: 453aa001834006fe051ffa8e5f0bdde7409ec69f
-  CapacitorStatusBar: 149cde8f1328ec3aa6cbdd872a55137ae3f98b16
-  Google-Mobile-Ads-SDK: 301a16c461c331ba34ff4dab40a22ab7c147af61
-  GoogleUserMessagingPlatform: a8b56893477f67212fbc8411c139e61d463349f5
+  Capacitor: 89067779e14fb7ea56af07b4817f45d1f0c2a269
+  CapacitorBrowser: 752e0208aa07c7aa63d1f7cde895a3e9519b2656
+  CapacitorCommunityAdmob: 6af78978278c429d21cb6ac604acefe7d99c054d
+  CapacitorCordova: 5bec5648cbd09a176ce34ce5e7b6cdabb2c8a327
+  CapacitorGeolocation: 327f18983c8f8a55e191fcf7dee80b9294f1ab78
+  CapacitorNativeSettings: 3f12e9700e0a10cb5d0e22aec00de29d72589a12
+  CapacitorStatusBar: eca7bc2b58d9f886f1ef9edb66e57a9b29c121af
+  Google-Mobile-Ads-SDK: 6e501ace4af8d63e967bd45497c8b2b05821163d
+  GoogleUserMessagingPlatform: befe603da6501006420c206222acd449bba45a9c
+  IONGeolocationLib: 6a7b6f76063fb1b01cfb14fae7d0f526e3c9b271
 
-PODFILE CHECKSUM: 25e24e49c49d76acab6f8219791285e86ef52060
+PODFILE CHECKSUM: 4d5cf47a571aa4b6fcf724d8e49660fe2551a4c5
 
 COCOAPODS: 1.16.2

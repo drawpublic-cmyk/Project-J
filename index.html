@@ -885,7 +885,7 @@
             <div class="logo-pin"><span>급</span></div>
             <div class="brand">존급</div>
             <div class="tagline">급할수록, 존급</div>
-            <div class="version">v0.1 · 대한민국 전체 지원</div>
+            <div class="version"><span class="app-ver">v1.0.0</span> · 대한민국 전체 지원</div>
           </div>
         </div>
       </section>
@@ -1129,7 +1129,7 @@
           <div class="titlebar"><h2 style="margin:6px 0 14px">설정</h2></div>
           <div class="settings-group">
             <div class="settings-label">앱 정보</div>
-            <div class="settings-item static">버전 <span class="arw" id="appVer">v1.0.0</span></div>
+            <div class="settings-item static">버전 <span class="arw app-ver" id="appVer">v1.0.0</span></div>
           </div>
           <div class="settings-group">
             <div class="settings-label">서비스 설정</div>
@@ -1245,6 +1245,9 @@
     };
     // 문의 메일 주소
     const INQUIRY_EMAIL = "draw.public@gmail.com";
+    // 앱 표시 버전(스플래시·설정·문의메일 공용). 스토어 업데이트 시 android/app/build.gradle versionName과 함께 올릴 것
+    const APP_VERSION = "v1.0.0";
+    document.querySelectorAll(".app-ver").forEach(el => { el.textContent = APP_VERSION; });
     // 오픈소스 정보 [이름, 라이선스·출처, 용도]
     const OPENSOURCE_LIST = [
       ["Capacitor", "MIT License · Ionic", "웹앱을 안드로이드 네이티브로 감싸는 프레임워크"],
@@ -1288,8 +1291,20 @@
        지도 화면만 #kakaoMap/#mapStatus가 position:absolute라 따로 재배치가 필요(layoutMapHead) —
        나머지 화면은 일반 문서 흐름이라 스페이서 높이만 바뀌면 자동으로 밀림.
        웹(플러그인 없음)에서는 전부 조용히 무시됨.
-       ⚠️ 현재는 구글 공식 '테스트' 광고 ID. 실제 AdMob 계정 발급 후 아래 ID + Manifest의 APPLICATION_ID 교체. */
-    const ADMOB_BANNER_ID = "ca-app-pub-3940256099942544/6300978111"; // 구글 공식 테스트 배너(Android)
+       출시 전: AdMob 콘솔에서 발급한 실제 배너 단위 ID를 ADMOB.android/ios에 넣고 ADMOB.test=false.
+       (앱 ID는 AndroidManifest.xml APPLICATION_ID / iOS Info.plist GADApplicationIdentifier 도 함께 교체)
+       test=true이거나 실제 ID가 비어 있으면 구글 공식 테스트 배너로 뜸 — 실제 ID로 테스트 광고를 누르면 계정 정지 위험. */
+    const ADMOB = {
+      test: true,
+      android: "",   // 예: "ca-app-pub-XXXXXXXXXXXXXXXX/NNNNNNNNNN"
+      ios: "",
+    };
+    const ADMOB_TEST_BANNER = { android: "ca-app-pub-3940256099942544/6300978111", ios: "ca-app-pub-3940256099942544/2934735716" };
+    function admobBannerId() {
+      const plat = (window.Capacitor && window.Capacitor.getPlatform && window.Capacitor.getPlatform()) === "ios" ? "ios" : "android";
+      return (!ADMOB.test && ADMOB[plat]) ? ADMOB[plat] : ADMOB_TEST_BANNER[plat];
+    }
+    const admobTesting = () => ADMOB.test || !ADMOB[(window.Capacitor && window.Capacitor.getPlatform && window.Capacitor.getPlatform()) === "ios" ? "ios" : "android"];
     // 화면별 배너 자리(스페이서 id). map=검색창 위, list=타이틀 아래, fav=안내문구 아래, settings=제목 아래
     const BANNER_SPACER = { map: "mapAdSpacer", list: "listAdSpacer", fav: "favAdSpacer", settings: "settingsAdSpacer" };
     const BANNER_SCREENS = Object.keys(BANNER_SPACER);
@@ -1311,15 +1326,26 @@
       if (el) el.style.height = h + "px";
       if (screen === "map") layoutMapHead();
     }
-    // 스페이서가 시작되는(=배너가 시작될) 화면 y좌표 — 세이프에어리어·화면별 레이아웃과 무관하게 항상 정확
+    // 상단 세이프에어리어(상태바) 높이(CSS px) — env()는 JS로 직접 못 읽어서 프로브 요소로 측정
+    function safeTopPx() {
+      const probe = document.createElement("div");
+      probe.style.cssText = "position:fixed;top:0;left:0;visibility:hidden;pointer-events:none;height:env(safe-area-inset-top,0px)";
+      document.body.appendChild(probe);
+      const h = probe.getBoundingClientRect().height;
+      probe.remove();
+      return h;
+    }
+    // 배너 margin = 스페이서가 시작되는 화면 y좌표에서 상단 세이프에어리어를 뺀 값.
+    // admob 플러그인 v8(안드로이드)은 TOP_CENTER일 때 margin에 시스템 상단 인셋(상태바)을 스스로 더하므로
+    // (BannerExecutor: margins[1] + topInset) 여기서 빼주지 않으면 상태바 높이만큼 아래로 밀려 검색창을 덮음.
     function bannerMargin(screen) {
       const id = BANNER_SPACER[screen]; const el = id && document.getElementById(id);
-      return el ? Math.round(el.getBoundingClientRect().top) : 0;
+      return el ? Math.max(0, Math.round(el.getBoundingClientRect().top - safeTopPx())) : 0;
     }
     async function initAdMob() {
       const A = _AdMob(); if (!A) return;   // 웹/미지원이면 스킵
       try {
-        await A.initialize({ initializeForTesting: true });
+        await A.initialize({ initializeForTesting: admobTesting() });
         admobReady = true;
         // 배너 실제 크기를 받아 예약 공간을 정확히 맞춤(320x50/468x60/adaptive 등 크기가 달라도 안 겹침)
         try {
@@ -1354,7 +1380,7 @@
           // 값을 신뢰할 수 없음 → margin 0(세이프에어리어 상단)으로 고정하고, 실제 배너 높이만큼
           // 스페이서를 늘려 그 아래 콘텐츠를 밀어내는 방식만 사용. 안드로이드는 기존 계산값 유지.
           const isIOS = window.Capacitor && window.Capacitor.getPlatform && window.Capacitor.getPlatform() === "ios";
-          await A.showBanner({ adId: ADMOB_BANNER_ID, adSize: "ADAPTIVE_BANNER", position: "TOP_CENTER", margin: isIOS ? 0 : margin, isTesting: true });
+          await A.showBanner({ adId: admobBannerId(), adSize: "ADAPTIVE_BANNER", position: "TOP_CENTER", margin: isIOS ? 0 : margin, isTesting: admobTesting() });
           bannerShown = true; bannerScreen = screen;
         } else if (!want && bannerShown) {
           await A.removeBanner(); bannerShown = false;
@@ -3429,7 +3455,7 @@
       if (act === "radius") { document.getElementById("radiusOpts").classList.toggle("open"); return; }
       if (key === "inquiry") {   // 문의 → Gmail 웹 작성창(인앱 브라우저). 기기 메일앱 설정과 무관하게 열림.
         const su = encodeURIComponent("[존급] 문의");
-        const body = encodeURIComponent("문의 내용을 적어주세요.\n\n\n---\n앱 버전: v1.0.0");
+        const body = encodeURIComponent("문의 내용을 적어주세요.\n\n\n---\n앱 버전: " + APP_VERSION);
         openExternal("https://mail.google.com/mail/?view=cm&fs=1&to=" + INQUIRY_EMAIL + "&su=" + su + "&body=" + body);
         return;
       }

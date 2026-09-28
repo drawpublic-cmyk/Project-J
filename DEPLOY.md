@@ -69,3 +69,24 @@
 ## 5. 요약
 - **지도만 빨리 공개** → 시나리오① (카카오 도메인 등록만 하면 끝)
 - **버스까지 풀기능 공개** → 시나리오②(서버리스 프록시) 필요. 원하면 `/api/bus` 함수 + 클라이언트 수정까지 만들어줄 수 있음.
+
+---
+
+## 6. 안드로이드 Play 스토어 출시 (2026-09 기준)
+
+### 빌드
+- Capacitor 8 / targetSdk 36 / minSdk 24. **JDK 21 필요** → `export JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"`
+- `cd mobile && npx cap sync android && cd android && ./gradlew bundleRelease`
+  → `app/build/outputs/bundle/release/app-release.aab` (key.properties + keystore/jongeup-release.jks로 자동 서명)
+- 업데이트마다 `app/build.gradle`의 `versionCode`(+1)·`versionName`, index.html `APP_VERSION` 함께 올리기
+- 오프라인이면 `mobile/www/offline.html`(capacitor.config `server.errorPath`)이 뜸
+
+### 출시 전 직접 해야 하는 것
+- [ ] AdMob 앱 등록 → index.html `ADMOB.android/ios`에 배너 단위 ID, `ADMOB.test=false`
+      + `AndroidManifest.xml` APPLICATION_ID, iOS `Info.plist` GADApplicationIdentifier 교체
+- [ ] Vercel 루트에 `app-ads.txt` (AdMob이 주는 한 줄) + Play 스토어 등록정보에 개발자 웹사이트 입력
+- [ ] 방통위 위치기반서비스사업 신고 + 위치기반서비스 이용약관
+- [ ] 개인정보처리방침에 위치정보·광고ID(AdMob) 수집 항목 명시
+- [ ] Play Console: 데이터 보안(위치·기기ID), 광고 포함, 광고 ID 선언, 콘텐츠 등급, 타깃 연령
+- [ ] 스토어 등록정보: 512 아이콘, 1024x500 그래픽, 폰 스크린샷 2장+, 설명
+- [ ] (개인 개발자 계정이면) 비공개 테스트 12명 × 14일 후 프로덕션 신청
