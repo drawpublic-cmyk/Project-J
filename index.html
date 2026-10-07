@@ -1363,6 +1363,10 @@
             if (h > 120) h = Math.round(h / (window.devicePixelRatio || 1));   // px로 온 경우 dp로 환산
             setBannerSpacer(bannerScreen, h);
           });
+          // 광고를 못 받아온 경우(노출할 광고 없음·네트워크 등) 미리 비워둔 자리를 접어서 상단이 비어 보이지 않게
+          A.addListener("bannerAdFailedToLoad", () => {
+            if (bannerScreen) setBannerSpacer(bannerScreen, 0);
+          });
         } catch (e) {}
         updateBanner(lastScreenForBanner);
       } catch (e) { console.warn("[존급] AdMob 초기화 실패:", e); }
@@ -1890,6 +1894,9 @@
       root.querySelectorAll("[data-goto]").forEach(el => {
         if (el.__bound) return; el.__bound = true;
         el.addEventListener("click", () => {
+          // 하단 탭바: 이미 보고 있는 화면의 탭을 다시 누르면 아무것도 안 함
+          // (show() 재실행 시 지도 relayout→재검색, 배너 재배치가 일어나 화면이 새로고침되는 것처럼 보였음)
+          if (el.classList.contains("tab") && el.classList.contains("active")) return;
           if (el.dataset.locate) requestLocation();
           if (el.dataset.goto) show(el.dataset.goto);   // 빈 값이면 화면전환 생략(안전가드)
         });
