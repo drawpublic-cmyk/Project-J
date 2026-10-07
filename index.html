@@ -9,7 +9,9 @@
        1. 컬러 토큰 (Design Spec v1 — 절대값. 직접 하드코딩 금지)
        ========================================================= */
     :root {
-      --ad-h: 0px;            /* 하단 광고 배너 높이 — 배너 표시 시 JS가 52px로 설정해 앱을 그만큼 위로 올림 */
+      --ad-h: 0px;            /* (구) 하단 광고 배너 높이 — 지금은 미사용, 0 유지 */
+      --ad-top: 0px;          /* 상단 광고 배너 높이 — 배너가 실제로 뜨면 JS가 그 높이로 설정(못 받아오면 0) */
+      --sat: calc(env(safe-area-inset-top) + var(--ad-top));   /* 화면 상단 여백 = 상태바 + 광고. 모든 헤더가 이걸 씀 */
       --brand-green: #06530B; /* 모든 주요 액션: 전체(활성)·SOS·길안내, 버스 핀, 선택점, 선택 칩 */
       --lavender:    #BBBFEC; /* 모든 카테고리 핀(화·편·프 동일), 스플래시/버스헤더, 정보 박스 */
       --cream:       #FDFCF7; /* 카드·검색바·시트 배경 */
@@ -93,14 +95,20 @@
       z-index: 10;
     }
 
+    /* 화면 전환: 네이티브 앱처럼 모든 화면을 레이아웃에 올려둔 채(겹쳐 쌓음) 보이기만 바꿈.
+       display:none 토글은 전환마다 다시 그리면서 지도 타일 재배치·깜빡임이 생겼음 → visibility로 전환.
+       활성 화면은 z-index로 맨 위 + 불투명 배경이라, 혹시 숨김 화면 속 요소가 보이더라도 가려짐. */
     .screen {
-      display: none;
+      position: absolute;
+      left: 0; right: 0; bottom: 0;
       height: calc(100% - 44px);
-      position: relative;
       overflow: hidden;
       background: var(--cream);
+      visibility: hidden;
+      pointer-events: none;
+      z-index: 0;
     }
-    .screen.active { display: block; }
+    .screen.active { visibility: visible; pointer-events: auto; z-index: 1; }
 
     /* ---------- 스플래시 (배경: lavender) ---------- */
     .splash {
@@ -568,7 +576,7 @@
     .detail-hero a.photo-link.corner { position: absolute; bottom: 12px; right: 14px; padding: 7px 12px; font-size: 12px; z-index: 2; }
     .top-icons {
       position: absolute;
-      top: calc(12px + env(safe-area-inset-top));   /* 상태바 아래로: 안 그러면 뒤로가기 버튼이 상태바에 가려 안 보임 */
+      top: calc(12px + var(--sat));   /* 상태바(+상단 광고) 아래로: 안 그러면 뒤로가기 버튼이 상태바에 가려 안 보임 */
       left: 14px;
       right: 14px;
       display: flex;
@@ -860,12 +868,12 @@
       .screen { height: 100%; }    /* 상태바 제거분까지 화면 채움 */
     }
     /* 시스템바(노치/제스처바) 영역을 각 화면의 배경색으로 연장 — insets는 데스크톱에선 0 */
-    .map-head { padding-top: calc(8px + env(safe-area-inset-top)); }
-    .bus-head { padding-top: calc(10px + env(safe-area-inset-top)); height: calc(132px + env(safe-area-inset-top)); }
-    .line-head { padding-top: calc(14px + env(safe-area-inset-top)); height: calc(124px + env(safe-area-inset-top)); }
-    .trip-head { padding-top: calc(14px + env(safe-area-inset-top)); }
-    .sos-header { padding-top: env(safe-area-inset-top); height: calc(72px + env(safe-area-inset-top)); }
-    .page { padding-top: calc(8px + env(safe-area-inset-top)); padding-bottom: calc(86px + var(--ad-h, 0px) + env(safe-area-inset-bottom)); }
+    .map-head { padding-top: calc(8px + var(--sat)); }
+    .bus-head { padding-top: calc(10px + var(--sat)); height: calc(132px + var(--sat)); }
+    .line-head { padding-top: calc(14px + var(--sat)); height: calc(124px + var(--sat)); }
+    .trip-head { padding-top: calc(14px + var(--sat)); }
+    .sos-header { padding-top: var(--sat); height: calc(72px + var(--sat)); }
+    .page { padding-top: calc(8px + var(--sat)); padding-bottom: calc(86px + var(--ad-h, 0px) + env(safe-area-inset-bottom)); }
     .tabs {
       height: calc(76px + var(--ad-h, 0px) + var(--tab-safe, env(safe-area-inset-bottom)));
       padding-bottom: calc(var(--ad-h, 0px) + var(--tab-safe, env(safe-area-inset-bottom)));
@@ -905,7 +913,6 @@
       <!-- 3. 메인 지도 -->
       <section class="screen" data-screen="map">
         <div class="map-head">
-          <div id="mapAdSpacer" style="height:0"></div>
           <button class="searchbar" data-goto="search">⌕ 어디 근처에서 급해요?</button>
           <div class="chips" id="filterChips"></div>
         </div>
@@ -944,7 +951,6 @@
       <!-- 8. 리스트 -->
       <section class="screen" data-screen="list">
         <div class="page">
-          <div id="listAdSpacer" style="height:0"></div>
           <div class="list-head">
             <div class="titlebar"><h2>근처</h2><button class="mini-btn" data-goto="map">지도로 보기</button></div>
             <p class="sub" id="listSub">지도에 보이는 지역 · 가까운 순</p>
@@ -964,7 +970,6 @@
       <!-- 즐겨찾기 -->
       <section class="screen" data-screen="fav">
         <div class="page">
-          <div id="favAdSpacer" style="height:0"></div>
           <div class="titlebar"><h2>즐겨찾기</h2><button class="mini-btn" id="favClear">전체 삭제</button></div>
           <p class="sub" id="favSub">하트를 누른 장소가 여기 모여요</p>
           <div class="chips" id="favChips"></div>
@@ -1125,7 +1130,6 @@
       <!-- 설정 -->
       <section class="screen" data-screen="settings">
         <div class="page">
-          <div id="settingsAdSpacer" style="height:0"></div>
           <div class="titlebar"><h2 style="margin:6px 0 14px">설정</h2></div>
           <div class="settings-group">
             <div class="settings-label">앱 정보</div>
@@ -1284,16 +1288,15 @@
       try { SB.setStyle({ style: "LIGHT" }); } catch (e) {}   // 밝은 바 배경 → 어두운 아이콘
     })();
 
-    /* ---------- AdMob 배너 (화면별로 정해진 자리 하나씩) ----------
-       네이티브 배너는 화면 좌표(TOP_CENTER + margin)로 위치를 잡을 뿐, 우리 DOM 레이아웃은 몰라서
-       그 자리를 실제로 비워주는 건 우리 몫 — 화면마다 둔 스페이서(#mapAdSpacer 등)의 높이를 배너 실제
-       높이만큼 늘려 그 아래 내용을 밀어내리고, margin은 그 스페이서가 시작되는 y좌표로 계산한다.
-       지도 화면만 #kakaoMap/#mapStatus가 position:absolute라 따로 재배치가 필요(layoutMapHead) —
-       나머지 화면은 일반 문서 흐름이라 스페이서 높이만 바뀌면 자동으로 밀림.
+    /* ---------- AdMob 배너 (상단 고정, 한 번 띄우면 계속 유지) ----------
+       배너는 앱 전체에 하나: 상태바(세이프에어리어) 바로 아래에 띄우고 탭을 옮겨도 내리지 않음
+       (예전처럼 화면마다 remove→show 하면 매번 깜빡이고 자리가 밀렸음).
+       DOM은 CSS 변수 --ad-top(배너 실제 높이)만큼 모든 헤더를 내려 자리를 비움(--sat = 상태바 + 광고).
+       광고를 아직/끝내 못 받아오면 --ad-top=0 → 빈 칸 없음. 스플래시·온보딩에선 안 띄움.
+       위치: TOP_CENTER + margin 0. 안드로이드 플러그인(v8)은 상태바 높이를 스스로 더하고,
+       iOS는 세이프에어리어 상단 기준이라 둘 다 margin 0이면 상태바 바로 아래.
        웹(플러그인 없음)에서는 전부 조용히 무시됨.
-       출시 전: AdMob 콘솔에서 발급한 실제 배너 단위 ID를 ADMOB.android/ios에 넣고 ADMOB.test=false.
-       (앱 ID는 AndroidManifest.xml APPLICATION_ID / iOS Info.plist GADApplicationIdentifier 도 함께 교체)
-       test=true이거나 실제 ID가 비어 있으면 구글 공식 테스트 배너로 뜸 — 실제 ID로 테스트 광고를 누르면 계정 정지 위험. */
+       출시 직전: ADMOB.test=false (실제 ID로 테스트 중 광고 클릭 시 계정 정지 위험이라 그 전까진 true). */
     const ADMOB = {
       test: true,
       android: "ca-app-pub-9625512692843779/1650695767",
@@ -1305,12 +1308,10 @@
       return (!ADMOB.test && ADMOB[plat]) ? ADMOB[plat] : ADMOB_TEST_BANNER[plat];
     }
     const admobTesting = () => ADMOB.test || !ADMOB[(window.Capacitor && window.Capacitor.getPlatform && window.Capacitor.getPlatform()) === "ios" ? "ios" : "android"];
-    // 화면별 배너 자리(스페이서 id). map=검색창 위, list=타이틀 아래, fav=안내문구 아래, settings=제목 아래
-    const BANNER_SPACER = { map: "mapAdSpacer", list: "listAdSpacer", fav: "favAdSpacer", settings: "settingsAdSpacer" };
-    const BANNER_SCREENS = Object.keys(BANNER_SPACER);
-    let admobReady = false, bannerShown = false, bannerScreen = null, lastScreenForBanner = "";
+    const NO_AD_SCREENS = ["splash", "onboard"];
+    let admobReady = false, bannerShown = false, adLoadedOnce = false, lastScreenForBanner = "";
     const _AdMob = () => window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.AdMob;
-    // #mapAdSpacer 높이가 바뀐 뒤 지도(#kakaoMap)·상태바(#mapStatus)를 map-head 바로 아래로 재배치(지도 화면 전용)
+    // 지도(#kakaoMap)·상태 안내(#mapStatus)는 position:absolute라 헤더 높이가 바뀌면 직접 맞춰야 함
     function layoutMapHead() {
       const head = document.querySelector(".map-head");
       if (!head) return;
@@ -1319,28 +1320,13 @@
       const statusEl = document.getElementById("mapStatus");
       if (mapEl) mapEl.style.top = bottom + "px";
       if (statusEl) statusEl.style.top = (bottom + 7) + "px";
-      if (kmap.ready) kmap.relayout();
     }
-    function setBannerSpacer(screen, h) {
-      const id = BANNER_SPACER[screen]; const el = id && document.getElementById(id);
-      if (el) el.style.height = h + "px";
-      if (screen === "map") layoutMapHead();
-    }
-    // 상단 세이프에어리어(상태바) 높이(CSS px) — env()는 JS로 직접 못 읽어서 프로브 요소로 측정
-    function safeTopPx() {
-      const probe = document.createElement("div");
-      probe.style.cssText = "position:fixed;top:0;left:0;visibility:hidden;pointer-events:none;height:env(safe-area-inset-top,0px)";
-      document.body.appendChild(probe);
-      const h = probe.getBoundingClientRect().height;
-      probe.remove();
-      return h;
-    }
-    // 배너 margin = 스페이서가 시작되는 화면 y좌표에서 상단 세이프에어리어를 뺀 값.
-    // admob 플러그인 v8(안드로이드)은 TOP_CENTER일 때 margin에 시스템 상단 인셋(상태바)을 스스로 더하므로
-    // (BannerExecutor: margins[1] + topInset) 여기서 빼주지 않으면 상태바 높이만큼 아래로 밀려 검색창을 덮음.
-    function bannerMargin(screen) {
-      const id = BANNER_SPACER[screen]; const el = id && document.getElementById(id);
-      return el ? Math.max(0, Math.round(el.getBoundingClientRect().top - safeTopPx())) : 0;
+    { const head = document.querySelector(".map-head");
+      if (head && window.ResizeObserver) new ResizeObserver(layoutMapHead).observe(head);
+      layoutMapHead(); }
+    function setAdTop(h) {
+      document.documentElement.style.setProperty("--ad-top", h + "px");
+      layoutMapHead();
     }
     async function initAdMob() {
       const A = _AdMob(); if (!A) return;   // 웹/미지원이면 스킵
@@ -1355,51 +1341,36 @@
       try {
         await A.initialize({ initializeForTesting: admobTesting() });
         admobReady = true;
-        // 배너 실제 크기를 받아 예약 공간을 정확히 맞춤(320x50/468x60/adaptive 등 크기가 달라도 안 겹침)
         try {
+          // 배너 실제 높이만큼만 자리를 비움(적응형 배너는 기기마다 높이가 다름)
           A.addListener("bannerAdSizeChanged", (s) => {
-            if (!bannerShown || !bannerScreen || !s || !s.height) return;
+            if (!bannerShown || !s || !s.height) return;
             let h = Math.round(s.height);
             if (h > 120) h = Math.round(h / (window.devicePixelRatio || 1));   // px로 온 경우 dp로 환산
-            setBannerSpacer(bannerScreen, h);
+            setAdTop(h);
           });
-          // 광고를 못 받아온 경우(노출할 광고 없음·네트워크 등) 미리 비워둔 자리를 접어서 상단이 비어 보이지 않게
-          A.addListener("bannerAdFailedToLoad", () => {
-            if (bannerScreen) setBannerSpacer(bannerScreen, 0);
-          });
+          A.addListener("bannerAdLoaded", () => { adLoadedOnce = true; });
+          // 한 번도 못 받아온 상태에서 실패하면 자리 접기. 이미 떠 있는 광고의 자동 갱신 실패는
+          // 이전 광고가 그대로 남아 있으므로 자리를 유지(접으면 광고가 헤더를 덮음).
+          A.addListener("bannerAdFailedToLoad", () => { if (!adLoadedOnce) setAdTop(0); });
         } catch (e) {}
         updateBanner(lastScreenForBanner);
       } catch (e) { console.warn("[존급] AdMob 초기화 실패:", e); }
     }
     async function updateBanner(screen) {
       lastScreenForBanner = screen;
-      const A = _AdMob(); if (!A || !admobReady) return;
-      const want = BANNER_SCREENS.includes(screen);
+      const A = _AdMob(); if (!A || !admobReady || !screen) return;
+      const want = !NO_AD_SCREENS.includes(screen);
       try {
-        // 배너 자리가 있는 다른 화면으로 넘어간 경우(예: 지도→설정) — 이전 자리 비우고 새로 그 자리에 띄움.
-        // hideBanner()는 기존 네이티브 뷰를 숨기기만 하고 위치는 그대로 남겨서, 그 뒤 showBanner()를
-        // 다시 불러도 위치 갱신도 안 되고 Promise도 안 끝나는 안드로이드 플러그인 버그가 있음 →
-        // removeBanner()로 완전히 없앤 뒤 새로 showBanner()해야 새 위치에 정상적으로 다시 뜸.
-        if (bannerShown && bannerScreen && bannerScreen !== screen) {
-          await A.removeBanner();
-          setBannerSpacer(bannerScreen, 0);
-          bannerShown = false; bannerScreen = null;
-        }
         if (want && !bannerShown) {
-          setBannerSpacer(screen, 90);   // 실제 크기 알기 전 임시 예약(적응형 배너 흔한 높이 기준, 커지면 리스너가 보정)
-          const margin = bannerMargin(screen);
-          // iOS는 capacitor-community/admob의 TOP_CENTER margin 동작이 버전마다 달라(github #153 등)
-          // 값을 신뢰할 수 없음 → margin 0(세이프에어리어 상단)으로 고정하고, 실제 배너 높이만큼
-          // 스페이서를 늘려 그 아래 콘텐츠를 밀어내는 방식만 사용. 안드로이드는 기존 계산값 유지.
-          const isIOS = window.Capacitor && window.Capacitor.getPlatform && window.Capacitor.getPlatform() === "ios";
-          await A.showBanner({ adId: admobBannerId(), adSize: "ADAPTIVE_BANNER", position: "TOP_CENTER", margin: isIOS ? 0 : margin, isTesting: admobTesting() });
-          bannerShown = true; bannerScreen = screen;
-        } else if (!want && bannerShown) {
-          await A.removeBanner(); bannerShown = false;
-          setBannerSpacer(bannerScreen, 0);
-          bannerScreen = null;
+          bannerShown = true;
+          await A.showBanner({ adId: admobBannerId(), adSize: "ADAPTIVE_BANNER", position: "TOP_CENTER", margin: 0, isTesting: admobTesting() });
+        } else if (!want && bannerShown) {   // 온보딩으로 되돌아간 경우(드묾)
+          bannerShown = false; adLoadedOnce = false;
+          await A.removeBanner();
+          setAdTop(0);
         }
-      } catch (e) { console.warn("[존급] 배너 표시 오류:", e); }
+      } catch (e) { bannerShown = false; console.warn("[존급] 배너 표시 오류:", e); }
     }
     initAdMob();
 
@@ -1878,7 +1849,6 @@
     function show(screen) {
       document.querySelectorAll(".screen").forEach(el => el.classList.toggle("active", el.dataset.screen === screen));
       document.querySelectorAll(".tab").forEach(tab => tab.classList.toggle("active", tab.dataset.goto === screen));
-      if (screen === "map" && kmap.ready) kmap.relayout();
       if (screen === "map" && !mapStarted && CONFIG.KAKAO_JS_KEY) requestLocation(); // 지도 진입 시 실제 지도 자동 로드
       if (screen === "fav") renderFav();
       if (screen === "settings") updateLocationSetting();   // '내 위치 허용' 상태 라벨 갱신
