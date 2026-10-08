@@ -1254,20 +1254,24 @@
     document.querySelectorAll(".app-ver").forEach(el => { el.textContent = APP_VERSION; });
     // 오픈소스 정보 [이름, 라이선스·출처, 용도]
     const OPENSOURCE_LIST = [
-      ["Capacitor", "MIT License · Ionic", "웹앱을 안드로이드 네이티브로 감싸는 프레임워크"],
-      ["@capacitor/geolocation", "MIT License", "현재 위치(GPS·네트워크) 조회"],
-      ["@capacitor/status-bar", "MIT License", "상태바 스타일 제어"],
-      ["@capacitor/browser", "MIT License", "약관·문의 등 외부 링크 인앱 브라우저로 열기"],
-      ["capacitor-native-settings", "MIT License", "기기 설정 화면 바로 열기"]
+      ["Capacitor (core · android · ios)", "MIT License · Ionic", "웹앱을 안드로이드·iOS 네이티브 앱으로 감싸는 프레임워크"],
+      ["@capacitor/geolocation", "MIT License · OutSystems", "현재 위치(GPS·네트워크) 조회"],
+      ["@capacitor/status-bar", "MIT License · Ionic", "상태바 스타일 제어"],
+      ["@capacitor/browser", "MIT License · Ionic", "약관·문의 등 외부 링크 인앱 브라우저로 열기"],
+      ["@capacitor-community/admob", "MIT License · Masahiko Sakakibara", "Google AdMob 배너 광고 표시"],
+      ["capacitor-native-settings", "MIT License · Raphael vd Woude", "기기 설정 화면 바로 열기"],
+      ["OSRM (Open Source Routing Machine)", "BSD 2-Clause License · Project OSRM", "도보 길안내 경로 계산"]
     ];
-    // 정보 제공처 [데이터·서비스, 제공기관, 용도]
     const DATASOURCE_LIST = [
       ["카카오맵 (Kakao Maps API)", "카카오", "지도, 장소 검색(편의점·프린터·지하철역), 주소 좌표 변환"],
-      ["지하철 실시간 도착정보", "서울특별시 열린데이터광장", "지하철 실시간 도착·열차 위치, 역 정보"],
-      ["대중교통 정보(TAGO)", "국토교통부 · 공공데이터포털", "전국 버스 정류소·실시간 도착정보"],
+      ["지하철 실시간 도착정보", "서울특별시 열린데이터광장", "수도권 지하철 실시간 도착·열차 위치, 역 정보"],
+      ["부산 도시철도 열차시간표", "부산교통공사 · 공공데이터포털", "부산 지하철 도착 예정 시각(시간표 기준)"],
+      ["인천1호선 열차 시각표", "인천교통공사", "인천1호선 첫차·막차, 휴일 하행 시각"],
+      ["대중교통 정보(TAGO)", "국토교통부 · 공공데이터포털", "전국 버스 정류소·실시간 도착·노선·버스 위치"],
       ["버스도착정보 (TOPIS)", "서울특별시", "서울 버스 도착·노선·정류소"],
       ["전국 공중화장실 표준데이터", "행정안전부", "전국 공중·개방 화장실 위치·정보"],
-      ["전국 버스정류장 위치정보", "국토교통부", "전국 버스정류장 좌표"]
+      ["전국 버스정류장 위치정보", "국토교통부", "전국 버스정류장 좌표"],
+      ["OpenStreetMap", "© OpenStreetMap contributors · ODbL", "도보 길안내 경로의 도로 데이터(OSRM)"]
     ];
     // 검색 반경(설정값, m) — 지도 검색·서울버스 정류소 검색에 사용.
     // 앱 재시작 시 항상 기본 500m로 리셋(세션 중에는 변경 가능). 저장 안 함.

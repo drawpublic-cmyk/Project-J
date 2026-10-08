@@ -10,6 +10,13 @@
  *   SEOUL_SUBWAY_KEY = 서울 열린데이터광장 인증키(지하철)
  */
 const SENTINEL = "__JONGEUP_KEY__";
+// index.html이 px()로 부르는 공공 API 호스트 전부. 새 API를 프록시로 부르게 되면 여기에 추가.
+const ALLOWED_HOSTS = new Set([
+  "apis.data.go.kr",        // TAGO 버스(정류소·도착·노선·위치), 부산교통공사 시간표
+  "ws.bus.go.kr",           // 서울 버스
+  "swopenapi.seoul.go.kr",  // 서울 지하철 실시간
+  "openapi.seoul.go.kr",    // 서울 지하철 역 마스터
+]);
 
 export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -27,15 +34,15 @@ export default async function handler(req, res) {
     try { target = decodeURIComponent(target); } catch { break; }
   }
 
-  if (req.query && req.query.debug === "1") {
-    return res.status(200).json({ rawUrl: req.url, query: req.query, target });
-  }
-
   let host;
   try { host = new URL(target).hostname; }
   catch { return res.status(400).json({ error: "잘못된 URL", rawUrl: req.url, target }); }
 
-  const key = host.includes("seoul.go.kr")
+  // 허용된 공공 API 호스트만 중계 — 아무 주소나 받으면 공격자가 자기 서버 주소에 키 자리(__JONGEUP_KEY__)를
+  // 넣어 호출하는 것만으로 우리 서비스키가 그쪽으로 전송됨(키 유출 + 오픈 프록시 악용).
+  if (!ALLOWED_HOSTS.has(host)) return res.status(403).json({ error: "허용되지 않은 호스트", host });
+
+  const key = host.endsWith("seoul.go.kr")
     ? (process.env.SEOUL_SUBWAY_KEY || "")
     : (process.env.DATA_GO_KR_KEY || "");
   if (!key) return res.status(500).send("서버에 API 키 미설정(" + host + ")");
