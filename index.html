@@ -283,11 +283,12 @@
     }
     .map-status.ok  { background: rgba(6,83,11,.92); }
     .map-status.err { background: rgba(229,64,122,.96); }
+    .map-status.has-close { padding-right: 40px; }   /* 우측 상단 ✕ 자리만큼 글자 비켜줌 */
     .map-status[hidden] { display: none; }
     .route-cancel {
       display: none;
       position: absolute;
-      right: 12px; top: 112px;
+      right: 18px; top: 118px;   /* 실제 top은 layoutMapHead가 안내 박스(#mapStatus) 우측 상단에 맞춰 줌 */
       z-index: 9;
       width: 26px; height: 26px;
       border-radius: 50%;
@@ -488,6 +489,9 @@
     }
     /* 리스트 화면: 제목~가까운순 툴바까지 스크롤 안 되고 위에 고정, #placeList만 스크롤 */
     .list-head { position: sticky; top: 0; z-index: 4; background: var(--cream); padding-bottom: 1px; }
+    /* 탭 화면(리스트·즐겨찾기·설정): 스크롤 영역 자체를 상태바+광고 아래에서 시작 → 스크롤해도 광고 위로 안 올라감.
+       각 화면 머리(.list-head)는 그 천장에 붙어 고정, 아래 목록만 스크롤 */
+    .page.page-tab { margin-top: var(--sat); height: calc(100% - var(--sat)); }
     .titlebar {
       display: flex;
       align-items: center;
@@ -873,7 +877,10 @@
     .line-head { padding-top: calc(14px + var(--sat)); height: calc(124px + var(--sat)); }
     .trip-head { padding-top: calc(14px + var(--sat)); }
     .sos-header { padding-top: var(--sat); height: calc(72px + var(--sat)); }
-    .page { padding-top: calc(8px + var(--sat)); padding-bottom: calc(86px + var(--ad-h, 0px) + env(safe-area-inset-bottom)); }
+    .page { padding-top: calc(8px + var(--sat)); }
+    .page.page-tab { padding-top: 0; }
+    .page.page-tab > .list-head { padding-top: 8px; }   /* 여백을 고정 머리 안에 둬서 광고와 머리 사이로 목록이 비쳐 보이지 않게 */
+    .page { padding-bottom: calc(86px + var(--ad-h, 0px) + env(safe-area-inset-bottom)); }
     .tabs {
       height: calc(76px + var(--ad-h, 0px) + var(--tab-safe, env(safe-area-inset-bottom)));
       padding-bottom: calc(var(--ad-h, 0px) + var(--tab-safe, env(safe-area-inset-bottom)));
@@ -950,7 +957,7 @@
 
       <!-- 8. 리스트 -->
       <section class="screen" data-screen="list">
-        <div class="page">
+        <div class="page page-tab">
           <div class="list-head">
             <div class="titlebar"><h2>근처</h2><button class="mini-btn" data-goto="map">지도로 보기</button></div>
             <p class="sub" id="listSub">지도에 보이는 지역 · 가까운 순</p>
@@ -969,10 +976,12 @@
 
       <!-- 즐겨찾기 -->
       <section class="screen" data-screen="fav">
-        <div class="page">
-          <div class="titlebar"><h2>즐겨찾기</h2><button class="mini-btn" id="favClear">전체 삭제</button></div>
-          <p class="sub" id="favSub">하트를 누른 장소가 여기 모여요</p>
-          <div class="chips" id="favChips"></div>
+        <div class="page page-tab">
+          <div class="list-head">
+            <div class="titlebar"><h2>즐겨찾기</h2><button class="mini-btn" id="favClear">전체 삭제</button></div>
+            <p class="sub" id="favSub">하트를 누른 장소가 여기 모여요</p>
+            <div class="chips" id="favChips"></div>
+          </div>
           <div id="favList"></div>
         </div>
         <nav class="tabs">
@@ -1129,8 +1138,8 @@
 
       <!-- 설정 -->
       <section class="screen" data-screen="settings">
-        <div class="page">
-          <div class="titlebar"><h2 style="margin:6px 0 14px">설정</h2></div>
+        <div class="page page-tab">
+          <div class="list-head"><div class="titlebar"><h2 style="margin:6px 0 14px">설정</h2></div></div>
           <div class="settings-group">
             <div class="settings-label">앱 정보</div>
             <div class="settings-item static">버전 <span class="arw app-ver" id="appVer">v1.0.0</span></div>
@@ -1324,6 +1333,8 @@
       const statusEl = document.getElementById("mapStatus");
       if (mapEl) mapEl.style.top = bottom + "px";
       if (statusEl) statusEl.style.top = (bottom + 7) + "px";
+      const closeEl = document.getElementById("routeCancelBtn");
+      if (closeEl) closeEl.style.top = (bottom + 7 + 6) + "px";   // 길안내 박스 우측 상단
     }
     { const head = document.querySelector(".map-head");
       if (head && window.ResizeObserver) new ResizeObserver(layoutMapHead).observe(head);
@@ -2318,7 +2329,9 @@
         try {
           const route = await fetchWalkRoute(from, to);
           coords = route.coords;
-          label = `🚶 ${place.name}까지 ${fmtDist(route.distanceM)} · 도보 ${Math.max(1, Math.round(route.durationSec / 60))}분`;
+          // OSRM 공개 데모 서버는 foot 프로필을 무시하고 자동차 소요시간을 돌려줌(611m→1분 같은 값) →
+          // 경로 거리만 쓰고 시간은 보행속도(분당 약 75m ≈ 4.5km/h)로 직접 계산
+          label = `🚶 ${place.name}까지 ${fmtDist(route.distanceM)} · 도보 ${Math.max(1, Math.round(route.distanceM / 75))}분`;
         } catch (e) {
           // 경로 API 실패 시 직선거리로 대체 표시
           coords = [from, to];
@@ -2335,8 +2348,8 @@
         const bounds = new window.kakao.maps.LatLngBounds();
         path.forEach(p => bounds.extend(p));
         kmap.map.setBounds(bounds);
-        mapStatus(label, type);
         document.getElementById("routeCancelBtn")?.classList.add("show");
+        mapStatus(label, type);
         startRouteWatch(place, myGen);   // 목적지 근처 도착하면 알림 + 캐릭터 이동
       } catch (e) {
         console.warn("[존급] 길안내 경로 표시 실패:", e);
@@ -2535,7 +2548,8 @@
       if (!e) return;
       if (!msg) { e.hidden = true; return; }
       e.hidden = false;
-      e.className = "map-status" + (type ? " " + type : "");
+      const hasClose = document.getElementById("routeCancelBtn")?.classList.contains("show");
+      e.className = "map-status" + (type ? " " + type : "") + (hasClose ? " has-close" : "");
       e.textContent = msg;
     }
 
