@@ -913,10 +913,11 @@
         <div class="onboard">
           <div class="step">STEP 2 / 3</div>
           <h1>지금 당신이<br>어디 있는지<br>알려줄게요</h1>
-          <p class="copy">위치 권한을 허용하면 반경 500m 내 화장실 · 편의점 · 프린터 · 버스정류장을 전부 핀으로 보여줘요.</p>
+          <p class="copy">존급은 내 위치를 기준으로 반경 500m 내 화장실 · 편의점 · 프린터 · 버스정류장을 핀으로 보여줘요. 다음에 나오는 안내에서 위치 사용 여부를 선택할 수 있어요.</p>
           <div class="radar"></div>
-          <button class="primary" data-goto="map" data-locate="1">위치 허용하고 시작</button>
-          <button class="ghost" data-goto="map">나중에 할게요</button>
+          <!-- App Store 5.1.1(iv): 권한 요청 전 안내 화면의 버튼은 '계속/다음' 같은 중립 문구여야 하고,
+               안내 뒤에는 항상 시스템 권한 요청으로 넘어가야 함(건너뛰기 버튼 금지). 거부해도 앱은 위치 없이 동작 -->
+          <button class="primary" data-goto="map" data-locate="1">계속</button>
         </div>
       </section>
 
