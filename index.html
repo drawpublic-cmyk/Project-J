@@ -151,7 +151,7 @@
     /* ---------- 온보딩 ---------- */
     .onboard {
       height: 100%;
-      padding: 64px 28px 26px;
+      padding: 64px 28px calc(26px + env(safe-area-inset-bottom, 0px));   /* 하단 시스템 내비게이션 바만큼 버튼을 위로 */
       display: flex;
       flex-direction: column;
     }
@@ -884,6 +884,12 @@
     .page.page-tab { padding-top: 0; }
     .page.page-tab > .list-head { padding-top: 8px; }   /* 여백을 고정 머리 안에 둬서 광고와 머리 사이로 목록이 비쳐 보이지 않게 */
     .page { padding-bottom: calc(86px + var(--ad-h, 0px) + env(safe-area-inset-bottom)); }
+    /* 안드로이드: 앱 화면과 시스템 내비게이션 바(뒤로·홈) 경계에 실선 — 탭바 배경이 내비 바 영역까지 같은 색이라 구분이 안 됐음 */
+    html.plat-android .phone::after {
+      content: ""; position: absolute; left: 0; right: 0;
+      bottom: env(safe-area-inset-bottom, 0px); height: 1px;
+      background: rgba(26,26,26,.16); z-index: 60; pointer-events: none;
+    }
     .tabs {
       height: calc(76px + var(--ad-h, 0px) + var(--tab-safe, env(safe-area-inset-bottom)));
       padding-bottom: calc(var(--ad-h, 0px) + var(--tab-safe, env(safe-area-inset-bottom)));
@@ -1298,6 +1304,7 @@
     function writeCache(key, v, ttl) { try { localStorage.setItem(key, JSON.stringify({ exp: Date.now() + ttl, v })); } catch (e) {} }
     // 네이티브 앱(Capacitor)일 때만: 웹뷰를 시스템바 뒤까지(edge-to-edge) 그려 앱 배경이 노치/네비바까지 이어지게.
     // (브라우저에선 Capacitor 미존재 → 무시)
+    if (window.Capacitor && window.Capacitor.getPlatform && window.Capacitor.getPlatform() === "android") document.documentElement.classList.add("plat-android");
     (function initNativeStatusBar() {
       const SB = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.StatusBar;
       if (!SB) return;
