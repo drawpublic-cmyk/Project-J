@@ -1618,6 +1618,13 @@
         else { photo.removeAttribute("href"); photo.textContent = "사진 정보 없음"; }
       }
     }
+    // 상세: 카드 밖(위 작은 지도·카드 아래 빈 곳)을 누르면 지도로 돌아감 — 뒤로가기(←)와 같음
+    // 작은 지도는 카카오 StaticMap이 카카오맵 웹 링크로 감싸서, 누르면 앱 밖 크롬으로 나가던 문제도 함께 막음
+    document.querySelector('[data-screen="detail"] .page').addEventListener("click", (e) => {
+      if (e.target.closest(".detail-card, button, #detailPhoto")) return;
+      e.preventDefault();
+      show("map");
+    });
     // 버스 상세: 정류소명/번호 + 실시간 도착정보(TAGO)
     async function openBus(place) {
       currentBus = place; currentMode = "bus";
