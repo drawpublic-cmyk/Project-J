@@ -286,6 +286,7 @@
     .map-status.err { background: rgba(229,64,122,.96); }
     .kpin { transition: transform .15s ease; transform-origin: 50% 100%; }
     .kpin.sel { transform: scale(1.35); filter: drop-shadow(0 4px 6px rgba(0,0,0,.25)); }
+    body.routing .kpin:not(.sel) { opacity: .28; filter: saturate(.4); }   /* 길안내 중엔 목적지 외 핀을 흐리게 → 경로·목적지만 눈에 띄게 */
     .map-status.has-close { padding-right: 40px; }   /* 우측 상단 ✕ 자리만큼 글자 비켜줌 */
     .map-status[hidden] { display: none; }
     .route-cancel {
@@ -2271,12 +2272,15 @@
     }
     // 도보 경로선(우리 지도 위에 직접 그림) — OSRM 데모 서버(무료·키 불필요, foot 프로필)
     let routeLine = null;
+    let routeCasing = null;  // 경로선 밑에 까는 흰 테두리(지도 위에서 선이 묻히지 않게)
     let routeGen = 0;        // 길안내 중복 실행 방지: 매 호출마다 증가, 최신 호출 결과만 그려짐
     let routeWatchId = null;
     let routePath = [];      // 남은 경로 좌표({lat,lng}[]) — 이동할수록 지나온 구간을 잘라냄
     const ARRIVE_RADIUS_M = 30;   // 이 반경 안으로 들어오면 도착 알림
     function clearRoute() {
       if (routeLine) { routeLine.setMap(null); routeLine = null; }
+      if (routeCasing) { routeCasing.setMap(null); routeCasing = null; }
+      document.body.classList.remove("routing");
       routePath = [];
       const btn = document.getElementById("routeCancelBtn"); if (btn) btn.classList.remove("show");
     }
@@ -2302,7 +2306,9 @@
       });
       if (bestIdx > 0 && routePath.length - bestIdx > 1) {
         routePath = routePath.slice(bestIdx);
-        routeLine.setPath(routePath.map(p => new window.kakao.maps.LatLng(p.lat, p.lng)));
+        const path = routePath.map(p => new window.kakao.maps.LatLng(p.lat, p.lng));
+        routeLine.setPath(path);
+        if (routeCasing) routeCasing.setPath(path);
       }
     }
     // 길안내 중 위치 추적 → 캐릭터를 실시간 이동시키고 지나온 길을 지움, 목적지 반경 안으로 들어오면 도착 알림(1회) 후 추적 종료
@@ -2374,10 +2380,15 @@
         if (myGen !== routeGen) return;   // 그 사이 더 최신 길안내가 시작됨 → 이 결과는 버림
         routePath = coords;
         const path = coords.map(c => new window.kakao.maps.LatLng(c.lat, c.lng));
+        routeCasing = new window.kakao.maps.Polyline({
+          map: kmap.map, path, strokeWeight: 12, strokeColor: "#FFFFFF", strokeOpacity: 1,
+          strokeStyle: "solid", strokeLinecap: "round", strokeLinejoin: "round"
+        });
         routeLine = new window.kakao.maps.Polyline({
-          map: kmap.map, path, strokeWeight: 6, strokeColor: "#06530B", strokeOpacity: .9,
+          map: kmap.map, path, strokeWeight: 6, strokeColor: "#2B2F33", strokeOpacity: 1,   // 차콜: 지도 위 초록(버스 핀·2호선)과 안 겹치게
           strokeStyle: type === "err" ? "shortdash" : "solid", strokeLinecap: "round", strokeLinejoin: "round"
         });
+        document.body.classList.add("routing");
         const bounds = new window.kakao.maps.LatLngBounds();
         path.forEach(p => bounds.extend(p));
         kmap.map.setBounds(bounds);
