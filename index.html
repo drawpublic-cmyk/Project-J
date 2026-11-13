@@ -286,6 +286,16 @@
     .map-status.err { background: rgba(229,64,122,.96); }
     .kpin { transition: transform .15s ease; transform-origin: 50% 100%; }
     .kpin.sel { transform: scale(1.35); filter: drop-shadow(0 4px 6px rgba(0,0,0,.25)); }
+    /* 길안내 중 '내 위치' 고양이: 이동하면 걷는 모션(통통 튀며 좌우로 흔들), 진행 방향 쪽을 바라봄, 멈추면 가만히 */
+    .me-cat { position: relative; width: 38px; height: 38px; display: grid; place-items: center; transform: translateY(-6px); }
+    .me-cat::after { content: ""; position: absolute; left: 50%; bottom: -1px; width: 20px; height: 5px; margin-left: -10px; border-radius: 50%; background: rgba(0,0,0,.22); }
+    .me-cat-dir { transition: transform .2s ease; }
+    .me-cat.face-right .me-cat-dir { transform: scaleX(-1); }   /* 🐈 기본은 왼쪽을 봄 → 동쪽으로 걸으면 뒤집기 */
+    .me-cat-body { font-size: 30px; line-height: 1; transform-origin: 50% 85%; filter: drop-shadow(0 1px 2px rgba(0,0,0,.3)); }
+    .me-cat.walking .me-cat-body { animation: catStep .42s ease-in-out infinite; }
+    .me-cat.walking::after { animation: catShadow .42s ease-in-out infinite; }
+    @keyframes catStep { 0%, 100% { transform: translateY(0) rotate(-6deg); } 50% { transform: translateY(-5px) rotate(6deg); } }
+    @keyframes catShadow { 0%, 100% { transform: scaleX(1); opacity: 1; } 50% { transform: scaleX(.75); opacity: .6; } }
     body.routing .kpin:not(.sel) { opacity: .28; filter: saturate(.4); }   /* 길안내 중엔 목적지 외 핀을 흐리게 → 경로·목적지만 눈에 띄게 */
     .map-status.has-close { padding-right: 40px; }   /* 우측 상단 ✕ 자리만큼 글자 비켜줌 */
     .map-status[hidden] { display: none; }
@@ -2294,6 +2304,9 @@
         } catch (e) {}
         routeWatchId = null;
       }
+      cancelAnimationFrame(meCat.anim); clearTimeout(meCat.idleTimer);
+      if (meCat.el) meCat.el.classList.remove("walking");
+      meCat.last = null;
       if (kmap.meOverlay) kmap.meOverlay.setContent(ME_DOT_HTML);   // 길안내 종료 → 캐릭터에서 평소 점으로 복귀
     }
     // 이동한 만큼 지나온 구간을 잘라내 남은 길만 보이게 — 경로 위 점 중 현재 위치와 가장 가까운 지점부터 남김
@@ -2314,11 +2327,15 @@
     // 길안내 중 위치 추적 → 캐릭터를 실시간 이동시키고 지나온 길을 지움, 목적지 반경 안으로 들어오면 도착 알림(1회) 후 추적 종료
     async function startRouteWatch(place, myGen) {
       stopRouteWatch();
-      if (kmap.meOverlay) kmap.meOverlay.setContent(ME_NAV_HTML);
+      if (kmap.meOverlay) {
+        kmap.meOverlay.setContent(meCatEl());
+        const p = kmap.meOverlay.getPosition();
+        meCat.last = { lat: p.getLat(), lng: p.getLng() };
+      }
       const onPos = pos => {
         if (myGen !== routeGen || !pos || !pos.coords) return;   // 그 사이 새 길안내가 시작됐으면 무시
         const here = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-        if (kmap.meOverlay) kmap.meOverlay.setPosition(new window.kakao.maps.LatLng(here.lat, here.lng));
+        moveMeCat(here, pos.coords.speed);
         trimRoutePath(here);
         const d = haversine(here.lat, here.lng, Number(place.lat), Number(place.lng));
         if (d <= ARRIVE_RADIUS_M) {
@@ -2385,7 +2402,7 @@
           strokeStyle: "solid", strokeLinecap: "round", strokeLinejoin: "round"
         });
         routeLine = new window.kakao.maps.Polyline({
-          map: kmap.map, path, strokeWeight: 6, strokeColor: "#2B2F33", strokeOpacity: 1,   // 차콜: 지도 위 초록(버스 핀·2호선)과 안 겹치게
+          map: kmap.map, path, strokeWeight: 6, strokeColor: "#3E6FB0", strokeOpacity: 1,   // 소프트 블루: 회색 톤 화면과 어울리고 지도 위 초록(버스 핀·2호선)과 안 겹침
           strokeStyle: type === "err" ? "shortdash" : "solid", strokeLinecap: "round", strokeLinejoin: "round"
         });
         document.body.classList.add("routing");
@@ -2585,7 +2602,42 @@
     const kmap = { ready: false, map: null, overlays: [], relayout(){ if(this.map) this.map.relayout(); } };
     // '내 위치' 마커: 평소엔 초록 점, 길안내 중엔 고양이 캐릭터로 바꿔서 움직이는 게 잘 보이게
     const ME_DOT_HTML = `<div style="width:18px;height:18px;border-radius:50%;background:#06530B;border:4px solid #fff;box-shadow:0 0 0 8px rgba(6,83,11,.18)"></div>`;
-    const ME_NAV_HTML = `<div style="font-size:26px;line-height:1;transform:translateY(-4px);filter:drop-shadow(0 2px 4px rgba(0,0,0,.35))">🐱</div>`;
+    // 길안내 중 고양이: 요소를 하나 만들어 두고 재사용(걷기·방향 클래스를 바로 바꾸려고)
+    const meCat = { el: null, last: null, anim: 0, idleTimer: 0 };
+    function meCatEl() {
+      if (!meCat.el) {
+        meCat.el = document.createElement("div");
+        meCat.el.className = "me-cat";
+        meCat.el.innerHTML = '<div class="me-cat-dir"><div class="me-cat-body">🐈</div></div>';
+      }
+      return meCat.el;
+    }
+    // 새 위치로 고양이를 미끄러지듯 옮기고(뚝뚝 끊기지 않게), 움직이는 동안만 걷는 모션
+    function moveMeCat(here, speed) {
+      const ov = kmap.meOverlay; if (!ov) return;
+      const LatLng = window.kakao.maps.LatLng;
+      const prev = meCat.last || here;
+      meCat.last = here;
+      const d = haversine(prev.lat, prev.lng, here.lat, here.lng);
+      const el = meCatEl();
+      if (d >= 2 || (speed != null && speed > 0.6)) {   // GPS 흔들림(1~2m)에는 안 걷게
+        if (Math.abs(here.lng - prev.lng) > 0.000005) el.classList.toggle("face-right", here.lng > prev.lng);
+        el.classList.add("walking");
+        clearTimeout(meCat.idleTimer);
+        meCat.idleTimer = setTimeout(() => el.classList.remove("walking"), 2500);   // 2.5초 넘게 안 움직이면 멈춤
+      }
+      cancelAnimationFrame(meCat.anim);
+      const cur = ov.getPosition();
+      const from = { lat: cur.getLat(), lng: cur.getLng() };
+      if (d < 0.5 || d > 200) { ov.setPosition(new LatLng(here.lat, here.lng)); return; }   // 제자리·순간이동은 그냥 옮김
+      const t0 = performance.now(), dur = 900;
+      const step = now => {
+        const t = Math.min(1, (now - t0) / dur);
+        ov.setPosition(new LatLng(from.lat + (here.lat - from.lat) * t, from.lng + (here.lng - from.lng) * t));
+        if (t < 1) meCat.anim = requestAnimationFrame(step);
+      };
+      meCat.anim = requestAnimationFrame(step);
+    }
 
     function mapStatus(msg, type) {
       const e = document.getElementById("mapStatus");
