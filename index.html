@@ -3642,6 +3642,30 @@
     document.getElementById("detailHeart").addEventListener("click", () => toggleFav(currentDetail));
     document.getElementById("busHeart").addEventListener("click", () => { if (currentBus) toggleFav(stopFav(currentBus)); });
     document.getElementById("lineBack").addEventListener("click", () => show("bus"));
+
+    // 안드로이드 뒤로가기 키: 예전엔 앱이 바로 꺼졌음(@capacitor/app 없음) → 화면 안 ← 버튼과 똑같이 동작
+    // 탭(리스트·즐겨찾기·설정)은 지도로, 지도에서 길안내 중이면 길안내 종료, 아무것도 없으면 2초 안에 한 번 더 눌러야 종료
+    // 플러그인이 없는 예전 앱 버전에선 조용히 무시됨
+    (() => {
+      const App = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App;
+      if (!App || !App.addListener) return;
+      let exitArmedAt = 0;
+      App.addListener("backButton", () => {
+        const cur = document.querySelector(".screen.active")?.dataset.screen;
+        if (!cur || cur === "splash" || cur === "onboard") { App.exitApp(); return; }
+        if (cur === "map") {
+          if (routeDest) { endRoute(); return; }
+          if (Date.now() - exitArmedAt < 2000) { App.exitApp(); return; }
+          exitArmedAt = Date.now();
+          mapStatus("한 번 더 누르면 종료돼요");
+          setTimeout(() => { if (!routeDest) mapStatus(null); }, 2000);
+          return;
+        }
+        const back = document.querySelector('.screen.active .icon-btn[data-goto], .screen.active #lineBack');
+        if (back && back.offsetParent) back.click();
+        else show("map");
+      });
+    })();
     // 버스/지하철 도착화면 '여기로 길찾기' — 존재하지 않는 'route' 화면으로 가던 버그 수정, 상세화면과 동일하게 처리
     document.getElementById("busRoute").addEventListener("click", () => goDirections(currentBus));
     // 역→역 소요시간(경로) — 진입 버튼 + 검색/스왑/조회 바인딩
