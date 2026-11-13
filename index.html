@@ -891,6 +891,10 @@
     .line-head { padding-top: calc(14px + var(--sat)); height: calc(124px + var(--sat)); }
     .trip-head { padding-top: calc(14px + var(--sat)); }
     .sos-header { padding-top: var(--sat); height: calc(72px + var(--sat)); }
+    /* 색 있는 헤더는 상태바·광고 뒤(--sat)까지 칠해져 광고 위로 색이 삐져나와 보였음 → 그 띠만 기본 배경색, 헤더 색은 배너 바로 아래부터 */
+    .bus-head, .line-head, .trip-head { background: linear-gradient(var(--cream) var(--sat), var(--lavender) 0); }
+    .sos-header { background: linear-gradient(var(--cream) var(--sat), var(--brand-green) 0); }
+    .detail-hero::before { content: ""; position: absolute; top: 0; left: 0; right: 0; height: var(--sat); background: var(--cream); z-index: 2; }   /* 상단 작은 지도도 같은 이유로 가림 */
     .page { padding-top: calc(8px + var(--sat)); }
     .page.page-tab { padding-top: 0; }
     .page.page-tab > .list-head { padding-top: 8px; }   /* 여백을 고정 머리 안에 둬서 광고와 머리 사이로 목록이 비쳐 보이지 않게 */
