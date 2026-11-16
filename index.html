@@ -915,6 +915,42 @@
       height: calc(76px + var(--ad-h, 0px) + var(--tab-safe, env(safe-area-inset-bottom)));
       padding-bottom: calc(var(--ad-h, 0px) + var(--tab-safe, env(safe-area-inset-bottom)));
     }
+
+    /* ---------- 리퀴드 글래스: 지도 위에 떠 있는 요소만 (헤더·탭바는 뒤에 비칠 지도가 없어 불투명 유지) ---------- */
+    :root {
+      --glass: rgba(246,247,249,.58);
+      --glass-strong: rgba(246,247,249,.74);
+      --glass-edge: rgba(255,255,255,.7);
+      --glass-blur: blur(22px) saturate(180%);
+      --glass-shadow: 0 18px 40px rgba(20,24,30,.16), inset 0 1px 0 rgba(255,255,255,.75), inset 0 -1px 0 rgba(0,0,0,.04);
+    }
+    .place-card, .locate {
+      background: var(--glass);
+      -webkit-backdrop-filter: var(--glass-blur);
+      backdrop-filter: var(--glass-blur);
+      border: 1px solid var(--glass-edge);
+      box-shadow: var(--glass-shadow);
+    }
+    .place-card { border-radius: 26px; padding: 16px; }
+    .place-card .mini-btn { min-height: 44px; border-radius: 999px; }
+    .place-card .mini-btn:not(.cta) { background: rgba(255,255,255,.55); border-color: var(--glass-edge); }
+    .locate { border-radius: 50%; }
+    .map-status {
+      -webkit-backdrop-filter: var(--glass-blur);
+      backdrop-filter: var(--glass-blur);
+      border: 1px solid rgba(255,255,255,.22);
+      border-radius: 16px;
+      box-shadow: 0 10px 26px rgba(0,0,0,.18), inset 0 1px 0 rgba(255,255,255,.25);
+    }
+    .map-status    { background: rgba(26,26,26,.62); }
+    .map-status.ok { background: rgba(6,83,11,.7); }
+    .route-cancel { background: rgba(255,255,255,.22); }
+    /* backdrop-filter 미지원 기기: 반투명만 남으면 글자가 안 읽혀서 기존 불투명 색으로 */
+    @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+      .place-card, .locate { background: var(--cream); }
+      .map-status { background: rgba(26,26,26,.88); }
+      .map-status.ok { background: rgba(6,83,11,.92); }
+    }
   </style>
 </head>
 <body>
