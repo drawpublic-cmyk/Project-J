@@ -946,7 +946,22 @@
     .map-status.ok { background: rgba(6,83,11,.7); }
     .route-cancel { background: rgba(255,255,255,.22); }
     /* backdrop-filter 미지원 기기: 반투명만 남으면 글자가 안 읽혀서 기존 불투명 색으로 */
+    /* 핵심 숫자(거리)는 크게 */
+    .place-card .place-title { align-items: flex-end; }
+    .place-card .dist { font-size: 30px; line-height: .9; letter-spacing: -0.03em; white-space: nowrap; }
+    /* 도착 카드 (예전 alert 대체) */
+    .arrive { position: absolute; inset: 0; z-index: 30; display: grid; place-items: center; background: rgba(20,24,30,.28); animation: arriveBg .25s ease both; }
+    .arrive[hidden] { display: none; }
+    .arrive-card { width: min(84%, 320px); padding: 26px 22px 20px; border-radius: 30px; text-align: center; background: var(--glass-strong); -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur); border: 1px solid var(--glass-edge); box-shadow: var(--glass-shadow); animation: arrivePop .45s cubic-bezier(.2,1.4,.4,1) both; }
+    .arrive-cat { font-size: 64px; line-height: 1; display: inline-block; animation: arriveHop .6s ease-in-out 3; }
+    .arrive-title { margin-top: 10px; font-size: 28px; font-weight: 950; color: var(--brand-green); }
+    .arrive-name { margin-top: 6px; font-size: 15px; font-weight: 800; color: var(--charcoal); }
+    .arrive-btn { margin-top: 18px; width: 100%; min-height: 48px; border: 0; border-radius: 999px; background: var(--brand-green); color: #fff; font-weight: 900; font-size: 16px; }
+    @keyframes arriveBg { from { opacity: 0; } }
+    @keyframes arrivePop { from { opacity: 0; transform: translateY(24px) scale(.9); } }
+    @keyframes arriveHop { 0%, 100% { transform: translateY(0) rotate(0); } 30% { transform: translateY(-16px) rotate(-8deg); } 60% { transform: translateY(0) rotate(6deg); } }
     @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+      .arrive-card { background: var(--cream); }
       .place-card, .locate { background: var(--cream); }
       .map-status { background: rgba(26,26,26,.88); }
       .map-status.ok { background: rgba(6,83,11,.92); }
@@ -1014,6 +1029,14 @@
             <button class="mini-btn" id="cardDetail">상세</button>
           </div>
         </article>
+        <div class="arrive" id="arrive" hidden>
+          <div class="arrive-card">
+            <div class="arrive-cat">🐈</div>
+            <div class="arrive-title">도착했어요!</div>
+            <div class="arrive-name" id="arriveName"></div>
+            <button class="arrive-btn" id="arriveOk">길안내 끝내기</button>
+          </div>
+        </div>
         <nav class="tabs">
           <button class="tab active" data-goto="map"><b>⌖</b>지도</button>
           <button class="tab" data-goto="list"><b>☰</b>리스트</button>
@@ -1979,6 +2002,7 @@
       target.querySelectorAll("[data-filter]").forEach(btn => {
         btn.addEventListener("click", () => {
           activeFilter = btn.dataset.filter;
+          haptic("light");
           renderAll();
           if (kmap.ready) loadKakaoPlaces();
         });
@@ -2334,7 +2358,7 @@
       routePath = [];
       const btn = document.getElementById("routeCancelBtn"); if (btn) btn.classList.remove("show");
     }
-    function endRoute() { clearRoute(); stopRouteWatch(); mapStatus(null); routeDest = null; }
+    function endRoute() { clearRoute(); stopRouteWatch(); mapStatus(null); routeDest = null; document.getElementById("arrive").hidden = true; }
     function stopRouteWatch() {
       if (routeWatchId != null) {
         const Geo = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Geolocation;
@@ -2379,7 +2403,7 @@
         trimRoutePath(here);
         const d = haversine(here.lat, here.lng, Number(place.lat), Number(place.lng));
         if (d <= ARRIVE_RADIUS_M) {
-          alert(`🚩 ${place.name} 근처에 도착했어요!`);
+          showArrival(place);
           stopRouteWatch();
         }
       };
@@ -2408,6 +2432,7 @@
         return;
       }
       const myGen = ++routeGen;   // 길안내를 여러 번 눌러도 마지막 호출 결과만 남도록
+      haptic("medium");
       routeDest = place; selectedPlace = place; updateCard(place);
       const wasHidden = document.querySelector('.screen[data-screen="map"]:not(.active)');
       show("map");
@@ -2678,6 +2703,23 @@
       };
       meCat.anim = requestAnimationFrame(step);
     }
+
+    // 햅틱: 네이티브(@capacitor/haptics 있는 앱 버전) → 없으면 안드로이드 웹뷰 진동 → 둘 다 없으면 무시
+    function haptic(kind) {
+      try {
+        const H = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Haptics;
+        if (H && H.impact) {
+          if (kind === "success") H.notification({ type: "SUCCESS" });
+          else H.impact({ style: kind === "medium" ? "MEDIUM" : "LIGHT" });
+        } else if (navigator.vibrate) navigator.vibrate(kind === "success" ? [30, 60, 40] : kind === "medium" ? 25 : 12);
+      } catch (e) {}
+    }
+    function showArrival(place) {
+      haptic("success");
+      document.getElementById("arriveName").textContent = `${place.name} 근처예요`;
+      document.getElementById("arrive").hidden = false;
+    }
+    document.getElementById("arriveOk").addEventListener("click", () => { document.getElementById("arrive").hidden = true; endRoute(); });
 
     function mapStatus(msg, type) {
       const e = document.getElementById("mapStatus");
