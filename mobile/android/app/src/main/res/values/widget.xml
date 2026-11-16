@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="widget_description">급할 때 원탭: 가장 가까운 화장실·프린터·편의점으로 바로 길안내</string>
+    <color name="widget_bg">#F2F6F7F9</color>
+    <color name="widget_btn">#FFFFFFFF</color>
+    <color name="widget_text">#FF1A1A1A</color>
+    <color name="widget_brand">#FF06530B</color>
+</resources>

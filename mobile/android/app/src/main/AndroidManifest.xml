@@ -20,7 +20,25 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <!-- 홈 화면 위젯 버튼 → jongeup://go/<toilet|print|store> (웹의 appUrlOpen 으로 전달) -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="jongeup" android:host="go" />
+            </intent-filter>
         </activity>
+
+        <receiver
+            android:name=".JongeupWidget"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/jongeup_widget_info" />
+        </receiver>
 
         <provider
             android:name="androidx.core.content.FileProvider"

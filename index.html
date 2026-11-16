@@ -2960,7 +2960,8 @@
         // 결과를 항상 반영(0건이어도) → 선택 카테고리만 정확히 표시
         places = collected.sort((a, b) => a.distance - b.distance);
         renderList(); renderMap();
-        if (collected.length) writeCache(cacheKey, collected, 9e4);   // 90초 결과 캐시(재방문 즉시표시)
+        if (collected.length) writeCache(cacheKey, collected, 9e4);
+        autoRouteIfPending();   // 90초 결과 캐시(재방문 즉시표시)
       };
       // 클릭 가능한 핀 추가 + collected 적재 (카카오/TAGO 공용, 좌표 중복 제거)
       // 같은 장소를 이름으로도 한 번 더 걸러냄. 카카오 검색 좌표와 공공데이터 지오코딩 좌표는
@@ -3001,6 +3002,7 @@
         cachedPlaces.forEach(p => addPin(p, p.lat, p.lng));   // addPin이 화면컬링·상한·중복제거 적용
         places = collected.slice().sort((a, b) => a.distance - b.distance);
         renderList(); renderMap();
+        autoRouteIfPending();
         return;   // 네트워크 팬아웃 생략
       }
       tasks.forEach(t => {
@@ -3779,6 +3781,31 @@
         else show("map");
       });
     })();
+    // 홈 화면 위젯: jongeup://go/<toilet|print|store> → 그 종류로 검색해서 가장 가까운 곳 바로 길안내
+    // (위젯 없는 예전 앱 버전·웹에선 이 링크가 올 일이 없어 아무 영향 없음)
+    let pendingAutoRoute = null;
+    function autoRouteIfPending() {
+      if (!pendingAutoRoute || activeFilter !== pendingAutoRoute) return;
+      const p = places.find(x => x.kind === pendingAutoRoute && x.lat && x.lng);
+      pendingAutoRoute = null;
+      if (p) goDirections(p);
+    }
+    function openFromWidget(url) {
+      const m = /^jongeup:\/\/go\/(toilet|print|store)\b/.exec(url || "");
+      if (!m) return;
+      clearTimeout(onboardTimer);   // 콜드 스타트면 스플래시→온보딩으로 넘어가지 않게
+      pendingAutoRoute = m[1];
+      activeFilter = m[1];
+      show("map");
+      renderAll();
+      if (kmap.ready) loadKakaoPlaces();   // 지도가 아직이면 위치 확인 후 첫 검색이 이 필터로 돌면서 처리됨
+    }
+    (() => {
+      const App = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App;
+      if (!App || !App.addListener) return;
+      App.addListener("appUrlOpen", e => openFromWidget(e && e.url));
+      if (App.getLaunchUrl) App.getLaunchUrl().then(r => r && openFromWidget(r.url)).catch(() => {});
+    })();
     // 버스/지하철 도착화면 '여기로 길찾기' — 존재하지 않는 'route' 화면으로 가던 버그 수정, 상세화면과 동일하게 처리
     document.getElementById("busRoute").addEventListener("click", () => goDirections(currentBus));
     // 역→역 소요시간(경로) — 진입 버튼 + 검색/스왑/조회 바인딩
@@ -3810,6 +3837,7 @@
     // 인앱 브라우저(약관 등)를 닫으면 안드로이드가 앱을 재로드해 온보딩으로 돌아가는 문제 방지:
     // 최근(10분 내) 있던 화면이 자체완결 화면(설정·즐겨찾기·지도)이면 그 화면으로 복원.
     const RESTORE_OK = ["settings", "fav", "map"];
+    var onboardTimer = 0;   // var: 위젯 링크 처리(위쪽 코드)가 먼저 참조해도 안전하게
     let didRestore = false;
     try {
       const o = JSON.parse(localStorage.getItem("jongeup_lastScreen") || "null");
@@ -3821,7 +3849,7 @@
       show(fromHash);
     } else {
       // 해시 없음 또는 #splash → 스플래시 보여주고 자동으로 온보딩으로 (안 넘어가는 문제 방지)
-      setTimeout(() => show("onboard"), 1600);   // 로딩 애니메이션 보이도록 살짝 길게
+      onboardTimer = setTimeout(() => show("onboard"), 1600);   // 로딩 애니메이션 보이도록 살짝 길게
     }
     window.addEventListener("hashchange", () => {
       const h = location.hash.replace("#", "");

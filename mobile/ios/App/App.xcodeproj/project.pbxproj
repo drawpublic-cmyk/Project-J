@@ -15,11 +15,41 @@
 		504EC30F1FED79650016851F /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 504EC30E1FED79650016851F /* Assets.xcassets */; };
 		504EC3121FED79650016851F /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 504EC3101FED79650016851F /* LaunchScreen.storyboard */; };
 		50B271D11FEDC1A000F3C39B /* public in Resources */ = {isa = PBXBuildFile; fileRef = 50B271D01FEDC1A000F3C39B /* public */; };
+		50F64FE6D86515EAC55C977A /* JongeupWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1C6E3D6B3652C09951CA4D8 /* JongeupWidget.swift */; };
+		81BE5AE24F41AD09646B811B /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 9ED037CA0A4CCBD764ECFE5B /* WidgetKit.framework */; };
+		97136BB2E1424C320EC100DD /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 108AFDEB9D75AA600A91A27E /* SwiftUI.framework */; };
 		A084ECDBA7D38E1E42DFC39D /* Pods_App.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AF277DCFFFF123FFC6DF26C7 /* Pods_App.framework */; };
+		ADCEC3D95BA286DAFFA2D571 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C5CB99238E3A22FE98BC367C /* Foundation.framework */; };
 		D1720BD93785FF6124835FC6 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 9364FB6EC33B69A4B61AD555 /* PrivacyInfo.xcprivacy */; };
+		FD7E4D6B23D5BCEDC284A4C0 /* JongeupWidget.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 9219B9F838A3B1D711B8355D /* JongeupWidget.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		532578713D7CD149B05E1728 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 504EC2FC1FED79650016851F /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = D243DB1E2343951FDDA2A2D7;
+			remoteInfo = JongeupWidget;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		5B335B892E38F218DF8F8780 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				FD7E4D6B23D5BCEDC284A4C0 /* JongeupWidget.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
+		108AFDEB9D75AA600A91A27E /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
 		2FAD9762203C412B000D30F8 /* config.xml */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = config.xml; sourceTree = "<group>"; };
 		50379B222058CBB4000EE86E /* capacitor.config.json */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.json; path = capacitor.config.json; sourceTree = "<group>"; };
 		504EC3041FED79650016851F /* App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = App.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -29,10 +59,15 @@
 		504EC3111FED79650016851F /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		504EC3131FED79650016851F /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		50B271D01FEDC1A000F3C39B /* public */ = {isa = PBXFileReference; lastKnownFileType = folder; path = public; sourceTree = "<group>"; };
+		9219B9F838A3B1D711B8355D /* JongeupWidget.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = JongeupWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		9364FB6EC33B69A4B61AD555 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		9ED037CA0A4CCBD764ECFE5B /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
 		AF277DCFFFF123FFC6DF26C7 /* Pods_App.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_App.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		AF51FD2D460BCFE21FA515B2 /* Pods-App.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-App.release.xcconfig"; path = "Pods/Target Support Files/Pods-App/Pods-App.release.xcconfig"; sourceTree = "<group>"; };
+		C5CB99238E3A22FE98BC367C /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS18.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
+		D350A453EE7DE8ECCBD27FD2 /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		EA7B0F595C3641F39E853F5D /* SceneDelegate.swift */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = sourcecode.swift; name = SceneDelegate.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
+		F1C6E3D6B3652C09951CA4D8 /* JongeupWidget.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = JongeupWidget.swift; sourceTree = "<group>"; };
 		FC68EB0AF532CFC21C3344DD /* Pods-App.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-App.debug.xcconfig"; path = "Pods/Target Support Files/Pods-App/Pods-App.debug.xcconfig"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -45,13 +80,34 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		D0F934C51F2B5D47E2213E16 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				ADCEC3D95BA286DAFFA2D571 /* Foundation.framework in Frameworks */,
+				81BE5AE24F41AD09646B811B /* WidgetKit.framework in Frameworks */,
+				97136BB2E1424C320EC100DD /* SwiftUI.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		2564E7D3B75AE09D87B976FB /* iOS */ = {
+			isa = PBXGroup;
+			children = (
+				C5CB99238E3A22FE98BC367C /* Foundation.framework */,
+			);
+			name = iOS;
+			sourceTree = "<group>";
+		};
 		27E2DDA53C4D2A4D1A88CE4A /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
 				AF277DCFFFF123FFC6DF26C7 /* Pods_App.framework */,
+				2564E7D3B75AE09D87B976FB /* iOS */,
+				9ED037CA0A4CCBD764ECFE5B /* WidgetKit.framework */,
+				108AFDEB9D75AA600A91A27E /* SwiftUI.framework */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -63,6 +119,7 @@
 				504EC3051FED79650016851F /* Products */,
 				7F8756D8B27F46E3366F6CEA /* Pods */,
 				27E2DDA53C4D2A4D1A88CE4A /* Frameworks */,
+				F6CF37C60C7DE46E149C061A /* JongeupWidget */,
 			);
 			sourceTree = "<group>";
 		};
@@ -70,6 +127,7 @@
 			isa = PBXGroup;
 			children = (
 				504EC3041FED79650016851F /* App.app */,
+				9219B9F838A3B1D711B8355D /* JongeupWidget.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -100,6 +158,16 @@
 			name = Pods;
 			sourceTree = "<group>";
 		};
+		F6CF37C60C7DE46E149C061A /* JongeupWidget */ = {
+			isa = PBXGroup;
+			children = (
+				F1C6E3D6B3652C09951CA4D8 /* JongeupWidget.swift */,
+				D350A453EE7DE8ECCBD27FD2 /* Info.plist */,
+			);
+			name = JongeupWidget;
+			path = JongeupWidget;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -113,15 +181,34 @@
 				504EC3021FED79650016851F /* Resources */,
 				9592DBEFFC6D2A0C8D5DEB22 /* [CP] Embed Pods Frameworks */,
 				44ECD524CB1D252BF56A4FD6 /* [CP] Copy Pods Resources */,
+				5B335B892E38F218DF8F8780 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				466253F58CE7405D1792E6A8 /* PBXTargetDependency */,
 			);
 			name = App;
 			productName = App;
 			productReference = 504EC3041FED79650016851F /* App.app */;
 			productType = "com.apple.product-type.application";
+		};
+		D243DB1E2343951FDDA2A2D7 /* JongeupWidget */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 1FC713B784CECDB223AD4AC8 /* Build configuration list for PBXNativeTarget "JongeupWidget" */;
+			buildPhases = (
+				68F807F2FF4A711C1197FB5D /* Sources */,
+				D0F934C51F2B5D47E2213E16 /* Frameworks */,
+				22CC3E3B97057EB1DAB86E00 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = JongeupWidget;
+			productName = JongeupWidget;
+			productReference = 9219B9F838A3B1D711B8355D /* JongeupWidget.appex */;
+			productType = "com.apple.product-type.app-extension";
 		};
 /* End PBXNativeTarget section */
 
@@ -153,11 +240,19 @@
 			projectRoot = "";
 			targets = (
 				504EC3031FED79650016851F /* App */,
+				D243DB1E2343951FDDA2A2D7 /* JongeupWidget */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		22CC3E3B97057EB1DAB86E00 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		504EC3021FED79650016851F /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -235,7 +330,24 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		68F807F2FF4A711C1197FB5D /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				50F64FE6D86515EAC55C977A /* JongeupWidget.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		466253F58CE7405D1792E6A8 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = JongeupWidget;
+			target = D243DB1E2343951FDDA2A2D7 /* JongeupWidget */;
+			targetProxy = 532578713D7CD149B05E1728 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin PBXVariantGroup section */
 		504EC30B1FED79650016851F /* Main.storyboard */ = {
@@ -257,6 +369,27 @@
 /* End PBXVariantGroup section */
 
 /* Begin XCBuildConfiguration section */
+		3D9B5DF938BCE7C898F18D08 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = JongeupWidget/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @executable_path/../../Frameworks";
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.jongeup.app.widget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
 		504EC3141FED79650016851F /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -403,9 +536,38 @@
 			};
 			name = Release;
 		};
+		E338D077A83A3EA4A52971DB /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = JongeupWidget/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @executable_path/../../Frameworks";
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.jongeup.app.widget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		1FC713B784CECDB223AD4AC8 /* Build configuration list for PBXNativeTarget "JongeupWidget" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				3D9B5DF938BCE7C898F18D08 /* Release */,
+				E338D077A83A3EA4A52971DB /* Debug */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		504EC2FF1FED79650016851F /* Build configuration list for PBXProject "App" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
