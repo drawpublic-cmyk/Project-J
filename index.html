@@ -2783,16 +2783,17 @@
       // kind -> 카카오 검색 (카테고리코드 또는 키워드)
       const queries = {
         // 화장실 = 전용 화장실 + '누구나 쓸 수 있는 화장실을 품은 공공시설'(공원/지하철역/관공서/도서관 등). tag로 출처 표시
+        // include는 hay(업종 + " " + 상호) 맨 앞(^)에 걸어 '업종'만 검사 → "OO구청점" 식당·"OO공원 주차장"·무인민원발급창구 등 차단
         toilet: { kws: [
           "화장실", "공중화장실", "개방화장실",
-          { kw: "공원", tag: "공원 화장실" },
+          { kw: "공원", tag: "공원 화장실", include: /^(여행 > 공원 |가정,생활 > 화장실)/ },
           { cat: "SW8", tag: "역 화장실" },               // 지하철역(전 호선 화장실 개방)
-          { kw: "주민센터", tag: "공공시설" },
-          { kw: "행정복지센터", tag: "공공시설" },
-          { kw: "도서관", tag: "공공시설" },
-          { kw: "시청", tag: "공공시설" },
-          { kw: "구청", tag: "공공시설" }
-        ] },
+          { kw: "주민센터", tag: "공공시설", include: /^(사회,공공기관 > 지방행정기관 > 행정복지센터|가정,생활 > 화장실)/ },
+          { kw: "행정복지센터", tag: "공공시설", include: /^(사회,공공기관 > 지방행정기관 > 행정복지센터|가정,생활 > 화장실)/ },
+          { kw: "도서관", tag: "공공시설", include: /^(교육,학문 > 학습시설 > 도서관|가정,생활 > 화장실)/ },
+          { kw: "시청", tag: "공공시설", include: /^(사회,공공기관 > 지방행정기관 > (시청|구청|군청)|가정,생활 > 화장실)/ },
+          { kw: "구청", tag: "공공시설", include: /^(사회,공공기관 > 지방행정기관 > (시청|구청|군청)|가정,생활 > 화장실)/ }
+        ], include: /^가정,생활 > 화장실/ },
         store:  { cat: "CS2" },
         // 고객이 직접 출력 가능한 곳(무인/셀프). 넓은 토큰 '프린트'로 프린트히어로24·프린트올데이·무인프린트24 등 브랜드까지 포착,
         // '프린클라피'처럼 토큰 다른 브랜드는 개별 추가. 인쇄업체·사진/포토·3D·티셔츠 등 비문서 출력은 exclude로 제외
@@ -2800,9 +2801,9 @@
                   // ① 양성: 상호/업종이 출력·인쇄 계열인 곳만 통과 → 복권방·편의점 등 '프린트 키워드만 단' 엉뚱 업종 차단
                   include: /프린트|출력|복사|인쇄|프린클라피/,
                   // ③ 상호 기준: 카카오 업종이 전부 '인쇄,복사'라 업종으로는 B2B 인쇄업체와 구분 불가 →
-                  //    상호에 일반인 이용형 표현이 있어야 통과, 회사·영업소형 상호는 제외
-                  nameInclude: /프린트카페|프린트|무인|셀프|24|클라피|킨코스|카피|복사|출력/,
-                  nameExclude: /본사|지사|영업|그래픽스|시스템|디지[탈털]|기획|애드|광고|출판|산업|컴퍼니|커뮤니케이션|솔루션|인쇄$|인쇄소/,
+                  //    상호에 일반인 이용형 표현(셀프·무인·복사…)이나 셀프출력 브랜드가 있어야 통과. 'OO프린트'만으론 인쇄업체라 제외
+                  nameInclude: /프린트카페|무인|셀프|24|클라피|킨코스|카피|복사|출력|프린트잇|프린트히어|에스칼|프린트리/,
+                  nameExclude: /본사|지사|영업|그래픽스|시스템|디지[탈털]|기획|애드|광고|출판|산업|컴퍼니|커뮤니케이션|솔루션|인쇄$|인쇄소|명함|디자인/,
                   // ② 음성: ①을 통과해도 비문서 출력(사진/3D 등)·프린터 기기 거래업체(매입/렌탈/토너/수리)는 제외
                   exclude: /사진|포토|3D|스티커|티셔츠|의류|패브릭|라벨|간판|현수막|매입|매매|판매|렌탈|렌털|임대|리스|수리|토너|잉크|충전|복합기|사무기기|중고|도매|유통|수입|총판/ },
         subway: { cat: "SW8" },
@@ -2817,7 +2818,7 @@
       const pushItem = (kind, item, q) => {
         if (typeof item === "string") tasks.push({ kind, kw: item, include: q.include, exclude: q.exclude, nameInclude: q.nameInclude, nameExclude: q.nameExclude });
         else if (item.cat) tasks.push({ kind, cat: item.cat, tag: item.tag });          // 카테고리 기반(예: 지하철역)
-        else tasks.push({ kind, kw: item.kw, tag: item.tag, include: q.include, exclude: q.exclude, nameInclude: q.nameInclude, nameExclude: q.nameExclude });
+        else tasks.push({ kind, kw: item.kw, tag: item.tag, include: item.include || q.include, exclude: q.exclude, nameInclude: q.nameInclude, nameExclude: q.nameExclude });
       };
       kinds.forEach(kind => {
         if (kind === "bus" && CONFIG.DATA_GO_KR_KEY && CONFIG.PROXY) { tasks.push({ kind, bus: true }); return; }
