@@ -983,6 +983,10 @@
       /* 카카오맵은 다크 타일이 없어 타일 이미지만 반전(핀·오버레이는 그대로). 메인·상세 작은 지도 공통 */
       #kakaoMap img, #detailMap img { filter: invert(.9) hue-rotate(180deg) brightness(.95) contrast(.9); }
       .icon-btn { background: rgba(28,30,34,.85); border-color: var(--line); }
+      /* 인트로 로고 핀은 브랜드 아이콘이라 다크 모드에서도 라이트와 같은 색 그대로 */
+      .logo-pin { background: #EFF0F2; border-color: #06530B; }
+      .logo-pin span { color: #06530B; }
+      .version { color: var(--muted); }
       .settings-item:active { background: #26292E; }
       .loc-toggle::after, .line-stop.here .line-dot { background: #ECEDEF; }
       .radius-opts button { background: var(--field); }
