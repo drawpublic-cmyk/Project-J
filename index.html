@@ -1501,6 +1501,22 @@
         updateBanner(lastScreenForBanner);
       } catch (e) { console.warn("[존급] AdMob 초기화 실패:", e); }
     }
+    // 안드로이드: 배너 플러그인이 화면 인셋 처리(Capacitor)를 가로채는데, Capacitor가 전체화면(edge-to-edge) 세팅을
+    // 끝내기 전에 배너가 뜨면 상태바·내비바 높이가 두 번 잡혀 광고 위·탭바 아래에 빈 띠가 생김(앱이 바로 목록 화면으로 복원될 때).
+    // → 상태바 인셋이 웹에 들어온 걸(=세팅 완료) 확인한 뒤 첫 배너를 띄움. 최대 3초 기다리고 그래도 안 오면 그냥 띄움.
+    function insetTopPx() {
+      const probe = document.createElement("div");
+      probe.style.cssText = "position:fixed;top:0;height:env(safe-area-inset-top,0px);visibility:hidden;pointer-events:none";
+      document.body.appendChild(probe);
+      const h = probe.getBoundingClientRect().height;
+      probe.remove();
+      return h;
+    }
+    async function waitForEdgeToEdge() {
+      if (!(window.Capacitor && window.Capacitor.getPlatform && window.Capacitor.getPlatform() === "android")) return;
+      for (let i = 0; i < 30 && insetTopPx() <= 0; i++) await new Promise(r => setTimeout(r, 100));
+      await new Promise(r => setTimeout(r, 150));   // 인셋 반영 직후 레이아웃이 한 번 더 자리잡을 틈
+    }
     async function updateBanner(screen) {
       lastScreenForBanner = screen;
       const A = _AdMob(); if (!A || !admobReady || !screen) return;
@@ -1508,6 +1524,7 @@
       try {
         if (want && !bannerShown) {
           bannerShown = true;
+          await waitForEdgeToEdge();
           await A.showBanner({ adId: admobBannerId(), adSize: "ADAPTIVE_BANNER", position: "TOP_CENTER", margin: 0, isTesting: admobTesting() });
         } else if (!want && bannerShown) {   // 온보딩으로 되돌아간 경우(드묾)
           bannerShown = false; adLoadedOnce = false;

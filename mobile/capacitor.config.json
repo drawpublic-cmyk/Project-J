@@ -7,5 +7,10 @@
     "androidScheme": "https",
     "cleartext": false,
     "errorPath": "offline.html"
+  },
+  "plugins": {
+    "SystemBars": {
+      "initialViewportFitValueHint": "cover"
+    }
   }
 }
