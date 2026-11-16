@@ -960,6 +960,36 @@
     @keyframes arriveBg { from { opacity: 0; } }
     @keyframes arrivePop { from { opacity: 0; transform: translateY(24px) scale(.9); } }
     @keyframes arriveHop { 0%, 100% { transform: translateY(0) rotate(0); } 30% { transform: translateY(-16px) rotate(-8deg); } 60% { transform: translateY(0) rotate(6deg); } }
+    /* ---------- 다크 모드: 폰 설정을 따라감. 색은 거의 토큰이라 토큰만 바꾸고, 하드코딩된 몇 곳만 따로 ---------- */
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --brand-green: #2F8F3B;   /* 어두운 배경 위 글자로도 읽히게 한 톤 밝게 (버튼 배경으로도 그대로 씀) */
+        --lavender:    #3B3F6E;
+        --cream:       #1C1E22;
+        --map-bg:      #121417;
+        --charcoal:    #ECEDEF;
+        --line:  rgba(255, 255, 255, .12);
+        --muted: rgba(255, 255, 255, .58);
+        --field: rgba(255, 255, 255, .07);
+        --ph:    #2A2C31;
+        --shadow: 0 24px 70px rgba(0, 0, 0, .5);
+        --glass: rgba(30,32,37,.6);
+        --glass-strong: rgba(30,32,37,.8);
+        --glass-edge: rgba(255,255,255,.14);
+        --glass-shadow: 0 18px 40px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.1);
+        color-scheme: dark;
+      }
+      html, body { background: var(--map-bg) !important; }
+      /* 카카오맵은 다크 타일이 없어 타일 이미지만 반전(핀·오버레이는 그대로). 메인·상세 작은 지도 공통 */
+      #kakaoMap img, #detailMap img { filter: invert(.9) hue-rotate(180deg) brightness(.95) contrast(.9); }
+      .icon-btn { background: rgba(28,30,34,.85); border-color: var(--line); }
+      .settings-item:active { background: #26292E; }
+      .loc-toggle::after, .line-stop.here .line-dot { background: #ECEDEF; }
+      .radius-opts button { background: var(--field); }
+      .place-card .mini-btn:not(.cta) { background: rgba(255,255,255,.08); }
+      html.plat-android .phone::before { background: #0E1013; }
+      html.plat-android .phone::after { background: rgba(255,255,255,.12); }
+    }
     @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
       .arrive-card { background: var(--cream); }
       .place-card, .locate { background: var(--cream); }
@@ -1389,7 +1419,11 @@
       const SB = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.StatusBar;
       if (!SB) return;
       try { SB.setOverlaysWebView({ overlay: true }); } catch (e) {}
-      try { SB.setStyle({ style: "LIGHT" }); } catch (e) {}   // 밝은 바 배경 → 어두운 아이콘
+      // 상태바 아이콘 색: 라이트 모드 = 어두운 아이콘(LIGHT), 다크 모드 = 밝은 아이콘(DARK). 폰 설정이 바뀌면 따라감
+      const mq = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)");
+      const apply = () => { try { SB.setStyle({ style: mq && mq.matches ? "DARK" : "LIGHT" }); } catch (e) {} };
+      apply();
+      if (mq && mq.addEventListener) mq.addEventListener("change", apply);
     })();
 
     /* ---------- AdMob 배너 (상단 고정, 한 번 띄우면 계속 유지) ----------
